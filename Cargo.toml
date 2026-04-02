@@ -1,0 +1,84 @@
+[package]
+name = "ztlgr"
+version = "0.1.0"
+edition = "2021"
+authors = ["ZettelGraph Team"]
+description = "Terminal-based note-taking app with Zettelkasten methodology"
+license = "MIT OR Apache-2.0"
+repository = "https://github.com/yourusername/ztlgr"
+keywords = ["notes", "zettelkasten", "terminal", "tui"]
+categories = ["command-line-interface", "text-processing"]
+
+[dependencies]
+# Async runtime
+tokio = { version = "1.35", features = ["full"] }
+
+# Database
+rusqlite = { version = "0.30", features = ["bundled"] }
+
+# Serde
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+serde_yaml = "0.9"
+
+# TUI
+ratatui = "0.26"
+crossterm = "0.27"
+
+# Date/time
+chrono = { version = "0.4", features = ["serde"] }
+
+# UUID
+uuid = { version = "1.6", features = ["v4", "serde"] }
+
+# Markdown parsing
+pulldown-cmark = "0.9"
+
+# Regex
+regex = "1.10"
+
+# Error handling
+thiserror = "1.0"
+anyhow = "1.0"
+
+# Logging
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter"] }
+
+# Configuration
+directories = "5.0"
+toml = "0.8"
+
+# Async utilities
+parking_lot = "0.12"
+futures = "0.3"
+
+# File watching
+notify = "6.1"
+crossbeam-channel = "0.5"
+
+# File system
+walkdir = "2.4"
+sanitize-filename = "0.5"
+
+# CLI
+clap = { version = "4.4", features = ["derive", "env"] }
+shellexpand = "3.1"
+
+[dev-dependencies]
+tempfile = "3.9"
+criterion = "0.5"
+
+[[bin]]
+name = "ztlgr"
+path = "src/main.rs"
+
+[profile.release]
+lto = "thin"
+codegen-units = 1
+strip = true
+opt-level = 3
+
+[profile.dev]
+opt-level = 0
+debug = true

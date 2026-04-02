@@ -1,0 +1,104 @@
+# ztlgr configuration
+
+[vault]
+# Path to vault database file (default: platform-specific data directory)
+# path = "~/.local/share/ztlgr/default.vault"
+
+# Name of the vault
+name = "default"
+
+# Auto-backup interval in seconds (0 = disabled)
+auto_backup_interval = 3600
+
+# Maximum number of backups to keep
+max_backups = 5
+
+[ui]
+# Theme: dracula, gruvbox, nord, solarized, or custom theme name
+theme = "dracula"
+
+# Sidebar width in percent
+sidebar_width = 25
+
+# Show preview panel
+show_preview = true
+
+# Show line numbers
+show_line_numbers = true
+
+# Show backlinks panel
+show_backlinks = true
+
+# Show tags panel
+show_tags = true
+
+# Animation frames per second (0 = disabled)
+fps = 60
+
+[editor]
+# Keybindings style: vim, emacs, default
+keybindings = "vim"
+
+# Auto-save interval in seconds (0 = disabled)
+auto_save_interval = 30
+
+# Tab width
+tab_width = 4
+
+# Use soft tabs (spaces)
+soft_tabs = true
+
+# Word wrap
+word_wrap = true
+
+# Show whitespace characters
+show_whitespace = false
+
+[notes]
+# Default note type for new notes
+default_type = "permanent"
+
+# Auto-generate Zettel IDs
+auto_zettel_id = true
+
+# Default parent for new notes
+# default_parent = ""
+
+# Note templates directory
+# templates_dir = "~/.config/ztlgr/templates"
+
+[search]
+# Use fuzzy search
+fuzzy = true
+
+# Case sensitive search
+case_sensitive = false
+
+# Maximum results to show
+max_results = 50
+
+# Search in content (not just titles)
+search_content = true
+
+[graph]
+# Show labels on nodes
+show_labels = true
+
+# Maximum nodes to display
+max_nodes = 100
+
+# Graph layout: force-directed, circular, tree
+layout = "force-directed"
+
+# Graph depth to show
+depth = 3
+
+[zettelkasten]
+# ID style: luhmann, timestamp, custom
+id_style = "luhmann"
+
+# Create daily notes automatically
+create_daily_notes = true
+
+# Daily note time (HH:MM)
+daily_note_time = "00:00"
