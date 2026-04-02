@@ -2,11 +2,23 @@ use ztlgr::setup::SetupWizard;
 use ztlgr::db::Database;
 use ztlgr::ui::App;
 use std::path::PathBuf;
+use std::panic;
+use crossterm::terminal::{disable_raw_mode, LeaveAlternateScreen};
+use crossterm::execute;
+use std::io::stdout;
 
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
     // Initialize logging
     tracing_subscriber::fmt::init();
+    
+    // Setup panic hook to restore terminal state on crash
+    let default_panic = panic::take_hook();
+    panic::set_hook(Box::new(move |panic_info| {
+        let _ = disable_raw_mode();
+        let _ = execute!(stdout(), LeaveAlternateScreen);
+        default_panic(panic_info);
+    }));
     
     tracing::info!("Starting ztlgr v{}", env!("CARGO_PKG_VERSION"));
     

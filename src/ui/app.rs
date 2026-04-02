@@ -9,12 +9,32 @@ use ratatui::{
     layout::{Constraint, Direction, Layout},
     Terminal,
 };
+use std::io::stdout;
 
 use crate::config::Config;
 use crate::db::Database;
 use crate::note::Note;
 use crate::error::Result;
 use super::widgets::{NoteList, NoteEditor, PreviewPane, StatusBar};
+
+pub struct AppTerminal {
+    terminal: Option<Terminal<CrosstermBackend<std::io::Stdout>>>,
+    raw_mode_enabled: bool,
+}
+
+impl Drop for AppTerminal {
+    fn drop(&mut self) {
+        // Ensure terminal is always restored, even on panic
+        if let Some(terminal) = self.terminal.take() {
+            let _ = disable_raw_mode();
+            let _ = execute!(
+                stdout(),
+                LeaveAlternateScreen,
+                DisableMouseCapture
+            );
+        }
+    }
+}
 
 pub struct App {
     config: Config,
