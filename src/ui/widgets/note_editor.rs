@@ -26,6 +26,15 @@ impl NoteEditor {
         self.cursor = content.len();
     }
 
+    pub fn get_content(&self) -> String {
+        self.content.clone()
+    }
+
+    pub fn clear(&mut self) {
+        self.content.clear();
+        self.cursor = 0;
+    }
+
     pub fn draw(&self, f: &mut Frame, area: Rect, theme: &dyn crate::config::Theme, mode: Mode) {
         let text = if self.content.is_empty() {
             Text::from("Press 'i' to enter insert mode or 'n' to create a new note")

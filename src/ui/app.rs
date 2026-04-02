@@ -1,6 +1,6 @@
 use std::sync::Arc;
 use crossterm::{
-    event::{self, DisableMouseCapture, EnableMouseCapture, Event, KeyCode, KeyEvent, KeyModifiers},
+    event::{self, DisableMouseCapture, EnableMouseCapture, Event, KeyCode, KeyEvent, KeyModifiers, MouseEvent},
     execute,
     terminal::{disable_raw_mode, enable_raw_mode, EnterAlternateScreen, LeaveAlternateScreen},
 };
@@ -9,32 +9,12 @@ use ratatui::{
     layout::{Constraint, Direction, Layout},
     Terminal,
 };
-use std::io::stdout;
 
 use crate::config::Config;
 use crate::db::Database;
 use crate::note::Note;
 use crate::error::Result;
 use super::widgets::{NoteList, NoteEditor, PreviewPane, StatusBar};
-
-pub struct AppTerminal {
-    terminal: Option<Terminal<CrosstermBackend<std::io::Stdout>>>,
-    raw_mode_enabled: bool,
-}
-
-impl Drop for AppTerminal {
-    fn drop(&mut self) {
-        // Ensure terminal is always restored, even on panic
-        if let Some(terminal) = self.terminal.take() {
-            let _ = disable_raw_mode();
-            let _ = execute!(
-                stdout(),
-                LeaveAlternateScreen,
-                DisableMouseCapture
-            );
-        }
-    }
-}
 
 pub struct App {
     config: Config,
@@ -98,24 +78,34 @@ impl App {
         let mut terminal = Terminal::new(backend)?;
         
         // Main loop
+        let result = self.main_loop(&mut terminal).await;
+        
+        // Always restore terminal, even if there was an error
+        let _ = disable_raw_mode();
+        let _ = execute!(
+            terminal.backend_mut(),
+            LeaveAlternateScreen,
+            DisableMouseCapture
+        );
+        
+        result
+    }
+    
+    async fn main_loop(&mut self, terminal: &mut Terminal<CrosstermBackend<std::io::Stdout>>) -> Result<()> {
         while self.running {
             // Draw UI
             terminal.draw(|f| self.draw(f))?;
             
-            // Handle events
-            if let Event::Key(key) = event::read()? {
-                self.handle_key(key)?;
+            // Handle events with timeout to prevent blocking
+            if crossterm::event::poll(std::time::Duration::from_millis(100))? {
+                match event::read()? {
+                    Event::Key(key) => self.handle_key(key)?,
+                    Event::Mouse(mouse) => self.handle_mouse(mouse)?,
+                    Event::Resize(_, _) => {}, // Terminal resize, redraw on next iteration
+                    _ => {}
+                }
             }
         }
-        
-        // Restore terminal
-        disable_raw_mode()?;
-        execute!(
-            terminal.backend_mut(),
-            LeaveAlternateScreen,
-            DisableMouseCapture
-        )?;
-        
         Ok(())
     }
     
@@ -185,6 +175,8 @@ impl App {
             KeyCode::Char('i') => self.mode = Mode::Insert,
             KeyCode::Char('n') => self.new_note(),
             KeyCode::Char('d') => self.delete_note(),
+            KeyCode::Char('r') if key.modifiers == KeyModifiers::CONTROL => self.rename_note(),
+            KeyCode::Char('s') if key.modifiers == KeyModifiers::CONTROL => self.save_current_note(),
             KeyCode::Char('/') => self.mode = Mode::Search,
             KeyCode::Char(':') => self.mode = Mode::Command,
             KeyCode::Char('v') => self.mode = Mode::Graph,
@@ -216,6 +208,9 @@ impl App {
                 if self.config.editor.auto_save_interval > 0 {
                     self.save_current_note();
                 }
+            }
+            KeyCode::Char('s') if key.modifiers == KeyModifiers::CONTROL => {
+                self.save_current_note();
             }
             _ => {
                 // Pass to editor
@@ -258,7 +253,32 @@ impl App {
         }
     }
     
-    // Actions
+    fn handle_mouse(&mut self, mouse: MouseEvent) -> Result<()> {
+        match mouse.kind {
+            crossterm::event::MouseEventKind::Down(button) => {
+                match button {
+                    crossterm::event::MouseButton::Left => {
+                        // Click on note list to select
+                        self.selected_note = Some(format!("note_{}", mouse.column));
+                        self.load_note();
+                    }
+                    crossterm::event::MouseButton::Right => {
+                        // Right click context menu (future feature)
+                    }
+                    _ => {}
+                }
+            }
+            crossterm::event::MouseEventKind::ScrollUp => {
+                self.prev_note();
+            }
+            crossterm::event::MouseEventKind::ScrollDown => {
+                self.next_note();
+            }
+            _ => {}
+        }
+        Ok(())
+    }
+    
     fn next_note(&mut self) {
         if let Some(selected) = &self.selected_note {
             if let Some(pos) = self.notes.iter().position(|n| n.id.as_str() == selected) {
@@ -355,7 +375,33 @@ impl App {
     }
     
     fn save_current_note(&mut self) {
-        // Not implemented yet
+        if let Some(selected) = &self.selected_note {
+            if let Ok(id) = crate::note::NoteId::parse(selected) {
+                // Get the current content from the editor
+                let content = self.note_editor.get_content();
+                
+                // Find the note and update it
+                if let Some(note) = self.notes.iter_mut().find(|n| n.id.as_str() == selected) {
+                    note.content = content;
+                    
+                    // Save to database
+                    if self.db.update_note(&note).is_ok() {
+                        tracing::info!("Note saved: {}", selected);
+                        self.status_bar.set_message("Note saved ✓");
+                    } else {
+                        self.status_bar.set_message("Error saving note");
+                    }
+                }
+            }
+        } else {
+            self.status_bar.set_message("No note selected");
+        }
+    }
+    
+    fn rename_note(&mut self) {
+        // Switch to command mode for renaming
+        self.mode = Mode::Command;
+        self.status_bar.set_message("Enter new title and press Enter");
     }
     
     fn perform_search(&mut self) {
