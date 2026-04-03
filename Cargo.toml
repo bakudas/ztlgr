@@ -14,7 +14,7 @@ categories = ["command-line-interface", "text-processing"]
 tokio = { version = "1.35", features = ["full"] }
 
 # Database
-rusqlite = { version = "0.30", features = ["bundled"] }
+rusqlite = { version = "0.39", features = ["bundled"] }
 
 # Serde
 serde = { version = "1.0", features = ["derive"] }
