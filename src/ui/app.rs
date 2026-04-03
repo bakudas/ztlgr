@@ -14,12 +14,9 @@ use ratatui::{
 use std::sync::Arc;
 
 use super::widgets::{
-    NoteEditor, NoteList, PreviewPane, StatusBar,
-    ConfirmationModal, ConfirmationAction,
-    NoteTypeSelector, NoteTypeAction,
-    CreateNoteModal, CreateNoteAction,
-    SearchState, SearchResult,
-    Command, CommandParser, CommandExecutor, CommandContext, CommandResult,
+    Command, CommandContext, CommandExecutor, CommandParser, CommandResult, ConfirmationAction,
+    ConfirmationModal, CreateNoteAction, CreateNoteModal, NoteEditor, NoteList, NoteTypeAction,
+    NoteTypeSelector, PreviewPane, SearchResult, SearchState, StatusBar,
 };
 use crate::config::Config;
 use crate::db::Database;
@@ -77,7 +74,7 @@ impl App {
         // Load initial notes
         let notes = db.list_notes(50, 0)?;
 
-        Ok(Self {
+        let mut app = Self {
             config,
             db,
             mode: Mode::Normal,
@@ -92,7 +89,15 @@ impl App {
             search_state: SearchState::new(),
             show_preview: true,
             running: true,
-        })
+        };
+
+        // Load the first note if available
+        if !app.notes.is_empty() {
+            app.selected_note = Some(app.notes[0].id.as_str().to_string());
+            app.load_note();
+        }
+
+        Ok(app)
     }
 
     pub async fn run(&mut self) -> Result<()> {
@@ -232,9 +237,8 @@ impl App {
                     if let Some(action) = modal.handle_key(key) {
                         match action {
                             NoteTypeAction::Selected(note_type) => {
-                                self.current_modal = Some(CurrentModal::CreateNote(
-                                    CreateNoteModal::new(),
-                                ));
+                                self.current_modal =
+                                    Some(CurrentModal::CreateNote(CreateNoteModal::new()));
                                 self.status_bar.set_message(&format!(
                                     "Create new {} note (Esc to cancel)",
                                     note_type.label()
@@ -407,7 +411,9 @@ impl App {
                     }
                     Command::Rename(new_title) => {
                         if let Some(selected) = &self.selected_note.clone() {
-                            if let Some(note) = self.notes.iter_mut().find(|n| n.id.as_str() == selected) {
+                            if let Some(note) =
+                                self.notes.iter_mut().find(|n| n.id.as_str() == selected)
+                            {
                                 note.title = new_title;
                                 note.updated_at = chrono::Utc::now();
 
@@ -423,13 +429,17 @@ impl App {
                     }
                     Command::Move(folder) => {
                         if let Some(selected) = &self.selected_note.clone() {
-                            if let Some(note) = self.notes.iter_mut().find(|n| n.id.as_str() == selected) {
+                            if let Some(note) =
+                                self.notes.iter_mut().find(|n| n.id.as_str() == selected)
+                            {
                                 // Update note type based on folder
                                 note.note_type = match folder.as_str() {
                                     "daily" => crate::note::NoteType::Daily,
                                     "fleeting" => crate::note::NoteType::Fleeting,
                                     "permanent" => crate::note::NoteType::Permanent,
-                                    "literature" => crate::note::NoteType::Literature { source: String::new() },
+                                    "literature" => crate::note::NoteType::Literature {
+                                        source: String::new(),
+                                    },
                                     "index" => crate::note::NoteType::Index,
                                     "reference" => crate::note::NoteType::Reference { url: None },
                                     _ => note.note_type.clone(),
@@ -448,7 +458,9 @@ impl App {
                     }
                     Command::Tag(tags) => {
                         if let Some(selected) = &self.selected_note.clone() {
-                            if let Some(note) = self.notes.iter_mut().find(|n| n.id.as_str() == selected) {
+                            if let Some(note) =
+                                self.notes.iter_mut().find(|n| n.id.as_str() == selected)
+                            {
                                 // Add tags to note metadata
                                 if note.metadata.tags.is_none() {
                                     note.metadata.tags = Some(Vec::new());
@@ -475,15 +487,13 @@ impl App {
                     Command::Delete => {
                         // Show confirmation modal for delete
                         self.current_modal = Some(CurrentModal::Confirmation(
-                            ConfirmationModal::new(
-                                "Delete Note",
-                                "current note",
-                            ),
+                            ConfirmationModal::new("Delete Note", "current note"),
                         ));
                         self.status_bar.set_message("Delete confirmation shown");
                     }
                     Command::Export(format) => {
-                        self.status_bar.set_message(&format!("Export to {} not yet implemented", format));
+                        self.status_bar
+                            .set_message(&format!("Export to {} not yet implemented", format));
                     }
                     Command::Unknown(_) => {
                         // Error case handled below
@@ -589,7 +599,8 @@ impl App {
     fn new_note(&mut self) {
         let selector = NoteTypeSelector::new();
         self.current_modal = Some(CurrentModal::NoteTypeSelector(selector));
-        self.status_bar.set_message("Select note type (D/F/P/L for quick select)");
+        self.status_bar
+            .set_message("Select note type (D/F/P/L for quick select)");
     }
 
     fn create_note_with_details(&mut self, title: String, _tags: String) {
@@ -714,7 +725,7 @@ impl App {
 
     fn perform_search(&mut self) {
         let query = self.search_state.input.query().to_string(); // Clone to avoid borrow issues
-        
+
         if query.trim().is_empty() {
             self.search_state.results.clear();
             self.status_bar.set_message("Search: (type to search)");
@@ -727,7 +738,7 @@ impl App {
         match self.db.search_notes(&query, 20) {
             Ok(search_results) => {
                 self.search_state.results.clear();
-                
+
                 for result in search_results {
                     let excerpt = if result.content.len() > 100 {
                         format!("{}...", &result.content[..100])
@@ -752,10 +763,8 @@ impl App {
             }
             Err(_e) => {
                 self.search_state.results.clear();
-                self.status_bar.set_message(&format!(
-                    "Search error for: '{}'",
-                    query
-                ));
+                self.status_bar
+                    .set_message(&format!("Search error for: '{}'", query));
             }
         }
 

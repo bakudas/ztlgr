@@ -1,7 +1,7 @@
-use serde::{Deserialize, Serialize};
 use chrono::{DateTime, Utc};
+use serde::{Deserialize, Serialize};
 
-use super::{NoteId, ZettelId, Metadata};
+use super::{Metadata, NoteId, ZettelId};
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Note {
@@ -9,15 +9,15 @@ pub struct Note {
     pub title: String,
     pub content: String,
     pub note_type: NoteType,
-    
+
     // Zettelkasten fields
     pub zettel_id: Option<ZettelId>,
     pub parent_id: Option<NoteId>,
     pub source: Option<String>,
-    
+
     // Metadata
     pub metadata: Metadata,
-    
+
     // Timestamps
     pub created_at: DateTime<Utc>,
     pub updated_at: DateTime<Utc>,
@@ -44,12 +44,14 @@ impl NoteType {
             NoteType::Index => "index",
         }
     }
-    
+
     pub fn from_str(s: &str) -> Result<Self, String> {
         match s {
             "daily" => Ok(NoteType::Daily),
             "fleeting" => Ok(NoteType::Fleeting),
-            "literature" => Ok(NoteType::Literature { source: String::new() }),
+            "literature" => Ok(NoteType::Literature {
+                source: String::new(),
+            }),
             "permanent" => Ok(NoteType::Permanent),
             "reference" => Ok(NoteType::Reference { url: None }),
             "index" => Ok(NoteType::Index),
@@ -85,22 +87,22 @@ impl Note {
             updated_at: Utc::now(),
         }
     }
-    
+
     pub fn with_type(mut self, note_type: NoteType) -> Self {
         self.note_type = note_type;
         self
     }
-    
+
     pub fn with_zettel_id(mut self, zettel_id: ZettelId) -> Self {
         self.zettel_id = Some(zettel_id);
         self
     }
-    
+
     pub fn with_parent(mut self, parent_id: NoteId) -> Self {
         self.parent_id = Some(parent_id);
         self
     }
-    
+
     pub fn touch(&mut self) {
         self.updated_at = Utc::now();
     }

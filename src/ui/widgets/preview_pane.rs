@@ -1,8 +1,9 @@
+use pulldown_cmark::{CowStr, Event, Parser};
 use ratatui::{
     layout::Rect,
-    style::Style,
-    text::Text,
-    widgets::{Block, Borders, Paragraph},
+    style::{Color, Modifier, Style},
+    text::{Line, Span, Text},
+    widgets::{Block, Borders, Paragraph, Wrap},
     Frame,
 };
 
@@ -21,12 +22,94 @@ impl PreviewPane {
         self.content = content.to_string();
     }
 
+    /// Convert markdown to formatted ratatui Text
+    fn render_markdown(&self) -> Text<'static> {
+        if self.content.is_empty() {
+            return Text::from("Select a note to preview");
+        }
+
+        let parser = Parser::new(&self.content);
+        let mut lines = vec![];
+        let mut current_line = vec![];
+        let mut in_code_block = false;
+        let mut in_list = false;
+
+        for event in parser {
+            match event {
+                Event::Start(tag) => {
+                    match tag {
+                        pulldown_cmark::Tag::Heading(..) => {
+                            // Heading styling
+                            if !current_line.is_empty() {
+                                lines.push(Line::from(current_line.clone()));
+                                current_line.clear();
+                            }
+                        }
+                        pulldown_cmark::Tag::CodeBlock(_) => {
+                            in_code_block = true;
+                        }
+                        pulldown_cmark::Tag::List(_) => {
+                            in_list = true;
+                        }
+                        _ => {}
+                    }
+                }
+                Event::End(_tag) => {
+                    if in_code_block {
+                        in_code_block = false;
+                    }
+                    if in_list {
+                        in_list = false;
+                    }
+                }
+                Event::Text(text) => {
+                    let style = if in_code_block {
+                        Style::default().fg(Color::Cyan).bg(Color::Black)
+                    } else {
+                        Style::default().fg(Color::White)
+                    };
+
+                    current_line.push(Span::styled(text.to_string(), style));
+                }
+                Event::Code(text) => {
+                    current_line.push(Span::styled(
+                        text.to_string(),
+                        Style::default()
+                            .fg(Color::Green)
+                            .add_modifier(Modifier::BOLD),
+                    ));
+                }
+                Event::SoftBreak | Event::HardBreak => {
+                    if !current_line.is_empty() {
+                        lines.push(Line::from(current_line.clone()));
+                        current_line.clear();
+                    } else {
+                        lines.push(Line::from(""));
+                    }
+                }
+                Event::Rule => {
+                    if !current_line.is_empty() {
+                        lines.push(Line::from(current_line.clone()));
+                        current_line.clear();
+                    }
+                    lines.push(Line::from("───────────────────"));
+                }
+                _ => {
+                    // Other events like html, footnotes, etc.
+                }
+            }
+        }
+
+        // Add remaining line
+        if !current_line.is_empty() {
+            lines.push(Line::from(current_line));
+        }
+
+        Text::from(lines)
+    }
+
     pub fn draw(&self, f: &mut Frame, area: Rect, theme: &dyn crate::config::Theme) {
-        let text = if self.content.is_empty() {
-            Text::from("Select a note to preview")
-        } else {
-            Text::from(self.content.as_str())
-        };
+        let text = self.render_markdown();
 
         let paragraph = Paragraph::new(text)
             .block(
@@ -35,7 +118,8 @@ impl PreviewPane {
                     .borders(Borders::ALL)
                     .border_style(Style::default().fg(theme.border())),
             )
-            .style(Style::default().fg(theme.fg()).bg(theme.bg()));
+            .style(Style::default().fg(theme.fg()).bg(theme.bg()))
+            .wrap(Wrap { trim: true });
 
         f.render_widget(paragraph, area);
     }
