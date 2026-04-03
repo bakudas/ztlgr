@@ -95,7 +95,8 @@ impl Database {
     pub fn create_note(&self, note: &Note) -> ZResult<NoteId> {
         let conn = self.conn.lock();
 
-        let id = NoteId::new();
+        // Use the note's existing ID instead of generating a new one
+        let id = note.id.clone();
         let now = chrono::Utc::now();
 
         conn.execute(

@@ -773,10 +773,17 @@ impl App {
         let note = Note::with_template(title, note_type.clone(), use_template);
 
         if let Ok(id) = self.db.create_note(&note) {
-            self.notes.insert(0, note);
+            // Refresh notes list from database to ensure sync
+            if let Ok(updated_notes) = self.db.list_notes(50, 0) {
+                self.notes = updated_notes;
+            } else {
+                // Fallback: just insert the new note at the beginning
+                self.notes.insert(0, note);
+            }
+            
             self.selected_note = Some(id.as_str().to_string());
             self.load_note();
-            // Note: don't clear editor here - load_note() already set the content (template or empty)
+            self.mode = Mode::Insert; // Switch to insert mode immediately
             self.status_bar
                 .set_message(&format!("{} note created successfully!", note_type));
         } else {
