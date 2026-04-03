@@ -95,7 +95,14 @@ impl NoteEditor {
             .unwrap_or(line_text.len())
     }
 
-    pub fn draw(&self, f: &mut Frame, area: Rect, theme: &dyn crate::config::Theme, mode: Mode) {
+    pub fn draw(
+        &self,
+        f: &mut Frame,
+        area: Rect,
+        theme: &dyn crate::config::Theme,
+        mode: Mode,
+        is_focused: bool,
+    ) {
         let mode_text = match mode {
             Mode::Normal => "-- NORMAL --",
             Mode::Insert => "-- INSERT --",
@@ -143,12 +150,18 @@ impl NoteEditor {
             0
         };
 
+        let border_color = if is_focused {
+            theme.border_highlight()
+        } else {
+            theme.border()
+        };
+
         let paragraph = Paragraph::new(lines)
             .block(
                 Block::default()
                     .title(title)
                     .borders(Borders::ALL)
-                    .border_style(Style::default().fg(theme.border_highlight())),
+                    .border_style(Style::default().fg(border_color)),
             )
             .style(Style::default().fg(theme.fg()).bg(theme.bg()))
             .scroll((scroll_y as u16, 0));

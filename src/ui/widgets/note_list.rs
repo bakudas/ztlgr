@@ -23,6 +23,7 @@ impl NoteList {
         notes: &[Note],
         theme: &dyn crate::config::Theme,
         selected: Option<&str>,
+        is_focused: bool,
     ) {
         use ratatui::widgets::List;
 
@@ -52,11 +53,17 @@ impl NoteList {
             })
             .collect();
 
+        let border_color = if is_focused {
+            theme.border_highlight()
+        } else {
+            theme.border()
+        };
+
         let list = List::new(items).block(
             Block::default()
                 .title(" Notes ")
                 .borders(Borders::ALL)
-                .border_style(Style::default().fg(theme.border())),
+                .border_style(Style::default().fg(border_color)),
         );
 
         f.render_widget(list, area);

@@ -194,7 +194,13 @@ impl MetadataPane {
         ])
     }
 
-    pub fn draw(&self, f: &mut Frame, area: Rect, theme: &dyn crate::config::Theme) {
+    pub fn draw(
+        &self,
+        f: &mut Frame,
+        area: Rect,
+        theme: &dyn crate::config::Theme,
+        is_focused: bool,
+    ) {
         let mut lines = vec![];
 
         if let Some(note) = &self.current_note {
@@ -307,7 +313,11 @@ impl MetadataPane {
                 Block::default()
                     .title(" Metadata ")
                     .borders(Borders::ALL)
-                    .border_style(Style::default().fg(theme.border())),
+                    .border_style(Style::default().fg(if is_focused {
+                        theme.border_highlight()
+                    } else {
+                        theme.border()
+                    })),
             )
             .style(Style::default().fg(theme.fg()).bg(theme.bg()))
             .wrap(Wrap { trim: true });

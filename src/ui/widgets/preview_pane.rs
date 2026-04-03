@@ -108,15 +108,27 @@ impl PreviewPane {
         Text::from(lines)
     }
 
-    pub fn draw(&self, f: &mut Frame, area: Rect, theme: &dyn crate::config::Theme) {
+    pub fn draw(
+        &self,
+        f: &mut Frame,
+        area: Rect,
+        theme: &dyn crate::config::Theme,
+        is_focused: bool,
+    ) {
         let text = self.render_markdown(theme);
+
+        let border_color = if is_focused {
+            theme.border_highlight()
+        } else {
+            theme.border()
+        };
 
         let paragraph = Paragraph::new(text)
             .block(
                 Block::default()
                     .title(" Preview ")
                     .borders(Borders::ALL)
-                    .border_style(Style::default().fg(theme.border())),
+                    .border_style(Style::default().fg(border_color)),
             )
             .style(Style::default().fg(theme.fg()).bg(theme.bg()))
             .wrap(Wrap { trim: true });

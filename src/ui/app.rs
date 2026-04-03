@@ -195,13 +195,30 @@ impl App {
             &self.notes,
             theme_ref,
             self.selected_note.as_deref(),
+            self.focused_panel == Panel::NoteList,
         );
-        self.note_editor.draw(f, chunks[1], theme_ref, self.mode);
+        self.note_editor.draw(
+            f,
+            chunks[1],
+            theme_ref,
+            self.mode,
+            self.focused_panel == Panel::Editor,
+        );
 
         if self.show_preview {
             match self.right_panel {
-                RightPanel::Preview => self.preview_pane.draw(f, chunks[2], theme_ref),
-                RightPanel::Metadata => self.metadata_pane.draw(f, chunks[2], theme_ref),
+                RightPanel::Preview => self.preview_pane.draw(
+                    f,
+                    chunks[2],
+                    theme_ref,
+                    self.focused_panel == Panel::Right,
+                ),
+                RightPanel::Metadata => self.metadata_pane.draw(
+                    f,
+                    chunks[2],
+                    theme_ref,
+                    self.focused_panel == Panel::Right,
+                ),
             }
         }
 
