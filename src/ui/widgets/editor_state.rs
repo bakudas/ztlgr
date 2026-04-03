@@ -261,10 +261,21 @@ impl EditorState {
 
     /// Deleta caractere anterior (backspace)
     pub fn delete_prev_char(&mut self) {
+        // If there's a selection, delete the selection first
+        if let Some(sel) = self.selection {
+            if sel.start < sel.end {
+                self.delete_selection();
+                return;
+            }
+        }
+
         if self.cursor > 0 {
             // Encontra limite de caractere UTF-8
             let start = self.prev_char_boundary(self.cursor);
-            let deleted = self.text.to_string()[start..self.cursor].to_string();
+
+            // Safely get the deleted text using character indices
+            let content = self.text.to_string();
+            let deleted = content.get(start..self.cursor).unwrap_or("").to_string();
 
             self.text.delete_range(start..self.cursor);
 
@@ -281,9 +292,20 @@ impl EditorState {
 
     /// Deleta caractere seguinte (delete key)
     pub fn delete_next_char(&mut self) {
+        // If there's a selection, delete the selection first
+        if let Some(sel) = self.selection {
+            if sel.start < sel.end {
+                self.delete_selection();
+                return;
+            }
+        }
+
         if self.cursor < self.text.len() {
             let end = self.next_char_boundary(self.cursor);
-            let deleted = self.text.to_string()[self.cursor..end].to_string();
+
+            // Safely get the deleted text using character indices
+            let content = self.text.to_string();
+            let deleted = content.get(self.cursor..end).unwrap_or("").to_string();
 
             self.text.delete_range(self.cursor..end);
 
@@ -300,7 +322,11 @@ impl EditorState {
     /// Deleta seleção
     pub fn delete_selection(&mut self) {
         if let Some(sel) = self.selection {
-            let text = self.text.to_string()[sel.start..sel.end].to_string();
+            let content = self.text.to_string();
+            let text = content
+                .get(sel.start..sel.end.min(content.len()))
+                .unwrap_or("")
+                .to_string();
             self.text.delete_range(sel.start..sel.end);
 
             self.history.push(EditAction::Delete {
@@ -318,8 +344,11 @@ impl EditorState {
     pub fn copy_selection(&mut self) {
         if let Some(sel) = self.selection {
             if sel.start < sel.end {
-                self.clipboard =
-                    self.text.to_string()[sel.start..sel.end.min(self.text.len())].to_string();
+                let content = self.text.to_string();
+                self.clipboard = content
+                    .get(sel.start..sel.end.min(content.len()))
+                    .unwrap_or("")
+                    .to_string();
             }
         }
     }
@@ -486,11 +515,13 @@ impl EditorState {
     /// Obtém linha e coluna do cursor
     pub fn cursor_line_col(&self) -> (usize, usize) {
         let content = self.text.to_string();
-        let line = content[..self.cursor]
-            .chars()
-            .filter(|&c| c == '\n')
-            .count();
-        let col = content[..self.cursor]
+
+        // Safely slice content at cursor position
+        let content_before_cursor = content.get(0..self.cursor.min(content.len())).unwrap_or("");
+
+        let line = content_before_cursor.chars().filter(|&c| c == '\n').count();
+
+        let col = content_before_cursor
             .rsplit('\n')
             .next()
             .map(|s| s.chars().count())
