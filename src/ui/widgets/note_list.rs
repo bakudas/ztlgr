@@ -1,3 +1,6 @@
+// Note list - scroll field reserved for future scroll state management
+#![allow(dead_code)]
+
 use crate::note::Note;
 use ratatui::{
     layout::Rect,

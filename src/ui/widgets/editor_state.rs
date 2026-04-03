@@ -1,3 +1,6 @@
+// Editor state module - some utility methods reserved for future features
+#![allow(dead_code)]
+
 use super::editor_history::{EditAction, EditHistory};
 use std::ops::Range;
 

@@ -13,12 +13,12 @@ use ratatui::{
 };
 use std::sync::Arc;
 
+use super::widgets::modals::note_type_selector::NoteType as SelectorNoteType;
 use super::widgets::{
     Command, CommandContext, CommandExecutor, CommandParser, CommandResult, ConfirmationAction,
     ConfirmationModal, CreateNoteAction, CreateNoteModal, MetadataPane, NoteEditor, NoteList,
     NoteTypeAction, NoteTypeSelector, PreviewPane, SearchResult, SearchState, StatusBar,
 };
-use super::widgets::modals::note_type_selector::NoteType as SelectorNoteType;
 
 /// Sanitize filename by removing invalid characters
 fn sanitize_filename(name: &str) -> String {
@@ -295,34 +295,41 @@ impl App {
                         match action {
                             NoteTypeAction::Selected(note_type) => {
                                 self.pending_note_type = Some(note_type);
-                                
+
                                 // Daily notes are created automatically with date as title
                                 if matches!(note_type, SelectorNoteType::Daily) {
                                     // Check if daily note already exists for today
                                     let today = chrono::Utc::now().format("%Y-%m-%d").to_string();
                                     let daily_exists = self.notes.iter().any(|n| {
-                                        matches!(n.note_type, crate::note::NoteType::Daily) &&
-                                        n.created_at.format("%Y-%m-%d").to_string() == today
+                                        matches!(n.note_type, crate::note::NoteType::Daily)
+                                            && n.created_at.format("%Y-%m-%d").to_string() == today
                                     });
-                                    
+
                                     if daily_exists {
-                                        self.status_bar.set_message("Daily note already exists for today!");
+                                        self.status_bar
+                                            .set_message("Daily note already exists for today!");
                                         self.current_modal = None;
                                         self.pending_note_type = None;
                                     } else {
                                         // Create daily note automatically
                                         let title = format!("Daily Note - {}", today);
                                         let note_type = crate::note::NoteType::Daily;
-                                        self.create_note_with_details(title, String::new(), note_type, true);
+                                        self.create_note_with_details(
+                                            title,
+                                            String::new(),
+                                            note_type,
+                                            true,
+                                        );
                                         self.pending_note_type = None;
                                         self.current_modal = None;
                                         self.mode = Mode::Insert;
                                     }
                                 } else {
                                     // For other note types, show the CreateNoteModal
-                                    let create_modal = CreateNoteModal::new()
-                                        .with_note_type(note_type.label());
-                                    self.current_modal = Some(CurrentModal::CreateNote(create_modal));
+                                    let create_modal =
+                                        CreateNoteModal::new().with_note_type(note_type.label());
+                                    self.current_modal =
+                                        Some(CurrentModal::CreateNote(create_modal));
                                     self.status_bar.set_message(&format!(
                                         "Creating {} note - Enter title",
                                         note_type.label()
@@ -340,33 +347,41 @@ impl App {
                         match action {
                             CreateNoteAction::Created { title, tags } => {
                                 // Use the stored note type or default to Fleeting
-                                let note_type = self.pending_note_type
+                                let note_type = self
+                                    .pending_note_type
                                     .map(|t| match t {
                                         SelectorNoteType::Daily => crate::note::NoteType::Daily,
-                                        SelectorNoteType::Fleeting => crate::note::NoteType::Fleeting,
-                                        SelectorNoteType::Permanent => crate::note::NoteType::Permanent,
-                                        SelectorNoteType::Literature => crate::note::NoteType::Literature {
-                                            source: String::new(),
-                                        },
+                                        SelectorNoteType::Fleeting => {
+                                            crate::note::NoteType::Fleeting
+                                        }
+                                        SelectorNoteType::Permanent => {
+                                            crate::note::NoteType::Permanent
+                                        }
+                                        SelectorNoteType::Literature => {
+                                            crate::note::NoteType::Literature {
+                                                source: String::new(),
+                                            }
+                                        }
                                     })
                                     .unwrap_or(crate::note::NoteType::Fleeting); // Default to Fleeting
-                                
+
                                 // Check if daily note already exists for today
                                 if matches!(note_type, crate::note::NoteType::Daily) {
                                     let today = chrono::Utc::now().format("%Y-%m-%d").to_string();
                                     let daily_exists = self.notes.iter().any(|n| {
-                                        matches!(n.note_type, crate::note::NoteType::Daily) &&
-                                        n.created_at.format("%Y-%m-%d").to_string() == today
+                                        matches!(n.note_type, crate::note::NoteType::Daily)
+                                            && n.created_at.format("%Y-%m-%d").to_string() == today
                                     });
-                                    
+
                                     if daily_exists {
-                                        self.status_bar.set_message("Daily note already exists for today!");
+                                        self.status_bar
+                                            .set_message("Daily note already exists for today!");
                                         self.pending_note_type = None;
                                         self.current_modal = None;
                                         return Ok(());
                                     }
                                 }
-                                
+
                                 // Create note with template option
                                 let use_template = modal.use_template();
                                 self.create_note_with_details(title, tags, note_type, use_template);
@@ -671,7 +686,7 @@ impl App {
     fn next_note(&mut self) {
         // Save current note before switching
         self.save_current_note();
-        
+
         if let Some(selected) = &self.selected_note {
             if let Some(pos) = self.notes.iter().position(|n| n.id.as_str() == selected) {
                 if pos < self.notes.len() - 1 {
@@ -688,7 +703,7 @@ impl App {
     fn prev_note(&mut self) {
         // Save current note before switching
         self.save_current_note();
-        
+
         if let Some(selected) = &self.selected_note {
             if let Some(pos) = self.notes.iter().position(|n| n.id.as_str() == selected) {
                 if pos > 0 {
@@ -764,10 +779,16 @@ impl App {
             .set_message("Select note type (D/F/P/L for quick select)");
     }
 
-    fn create_note_with_details(&mut self, title: String, _tags: String, note_type: crate::note::NoteType, use_template: bool) {
+    fn create_note_with_details(
+        &mut self,
+        title: String,
+        _tags: String,
+        note_type: crate::note::NoteType,
+        use_template: bool,
+    ) {
         // Save current note before creating new one
         self.save_current_note();
-        
+
         // Create note with specified type and template option
         let note = Note::with_template(title, note_type.clone(), use_template);
 
@@ -779,7 +800,7 @@ impl App {
                 // Fallback: just insert the new note at the beginning
                 self.notes.insert(0, note);
             }
-            
+
             self.selected_note = Some(id.as_str().to_string());
             self.load_note();
             self.mode = Mode::Insert; // Switch to insert mode immediately
@@ -901,7 +922,11 @@ impl App {
                         let markdown_storage = MarkdownStorage::new();
 
                         if markdown_storage.write_note(note, &file_path).is_ok() {
-                            tracing::info!("Note saved: {} (db + file at {})", selected, file_path.display());
+                            tracing::info!(
+                                "Note saved: {} (db + file at {})",
+                                selected,
+                                file_path.display()
+                            );
                             self.status_bar.set_message("Note saved ✓");
                         } else {
                             tracing::warn!(

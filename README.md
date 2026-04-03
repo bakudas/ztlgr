@@ -2,6 +2,8 @@
 
 A terminal-based note-taking application with Zettelkasten methodology, built with Rust.
 
+**[Installation Guide](INSTALL.md)** | **[Documentation](#)** | **[Changelog](CHANGELOG.md)**
+
 ## Features
 
 - **Zettelkasten Methodology**: Luhmann-style IDs with flexible workflows
@@ -43,7 +45,7 @@ ztlgr
 - `/` - Search
 - `v` - Graph view
 - `p` - Toggle preview
-- `q` - Quit
+- `:q` - Quit (Vim-style)
 
 ### Insert Mode
 - `Esc` - Exit insert mode
@@ -138,7 +140,7 @@ Graph queries use recursive CTEs for traversal.
 
 ```bash
 # Clone the repository
-git clone https://github.com/yourusername/ztlgr
+git clone https://github.com/bakudas/ztlgr
 cd ztlgr
 
 # Build

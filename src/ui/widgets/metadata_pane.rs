@@ -1,3 +1,6 @@
+// Metadata pane - editing methods reserved for future metadata editing feature
+#![allow(dead_code)]
+
 use chrono::{DateTime, Utc};
 use ratatui::{
     layout::Rect,

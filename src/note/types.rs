@@ -47,19 +47,21 @@ impl NoteType {
             NoteType::Index => "index",
         }
     }
-    
+
     pub fn from_str(s: &str) -> Result<Self, String> {
         match s {
             "daily" => Ok(NoteType::Daily),
             "fleeting" => Ok(NoteType::Fleeting),
-            "literature" => Ok(NoteType::Literature { source: String::new() }),
+            "literature" => Ok(NoteType::Literature {
+                source: String::new(),
+            }),
             "permanent" => Ok(NoteType::Permanent),
             "reference" => Ok(NoteType::Reference { url: None }),
             "index" => Ok(NoteType::Index),
             _ => Err(format!("Invalid note type: {}", s)),
         }
     }
-    
+
     /// Get default template for this note type
     pub fn template(&self) -> String {
         match self {
@@ -70,9 +72,7 @@ impl NoteType {
                     today
                 )
             }
-            NoteType::Fleeting => {
-                "# Fleeting Note\n\nQuick capture...\n\n#tags\n".to_string()
-            }
+            NoteType::Fleeting => "# Fleeting Note\n\nQuick capture...\n\n#tags\n".to_string(),
             NoteType::Literature { source } => {
                 if source.is_empty() {
                     "# Literature Note\n\nSource: \n\n## Key Points\n\n## Summary\n\n".to_string()
@@ -98,26 +98,10 @@ impl NoteType {
             }
         }
     }
-    
+
     /// Check if this note type allows multiple instances per day
     pub fn allows_multiple_per_day(&self) -> bool {
         !matches!(self, NoteType::Daily)
-    }
-}
-    }
-
-    pub fn from_str(s: &str) -> Result<Self, String> {
-        match s {
-            "daily" => Ok(NoteType::Daily),
-            "fleeting" => Ok(NoteType::Fleeting),
-            "literature" => Ok(NoteType::Literature {
-                source: String::new(),
-            }),
-            "permanent" => Ok(NoteType::Permanent),
-            "reference" => Ok(NoteType::Reference { url: None }),
-            "index" => Ok(NoteType::Index),
-            _ => Err(format!("Invalid note type: {}", s)),
-        }
     }
 }
 

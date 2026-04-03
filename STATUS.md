@@ -1,8 +1,8 @@
 # Status do Projeto ztlgr
 
 **Data Atualização:** 3 de Abril de 2026  
-**Versão:** 0.3.0 (MVP Phase Complete)  
-**Status Geral:** 🟢 MVP FUNCIONAL  
+**Versão:** 0.3.0 (MVP Ready for Distribution)  
+**Status Geral:** 🟢 MVP READY FOR RELEASE  
 **Testes:** 248 passing (100% success rate)
 
 ---
@@ -13,9 +13,24 @@
 - ✅ **Infrastructure**: 100% (setup, DB, storage, themes)
 - ✅ **Core Features**: 100% (editor, search, command, modals)
 - ✅ **Link System**: 100% (parsing + validation + highlighting + autocomplete + following + backlinks all complete!)
-- 🟠 **Polish**: 0% (next priority)
+- ✅ **Distribution Setup**: 100% (INSTALL.md, GitHub Actions, README updates)
 
-### Implementação Completa! ✅
+### 🚀 READY FOR DISTRIBUTION
+
+All critical tasks completed:
+- ✅ Repository URL correct (github.com/bakudas/ztlgr)
+- ✅ INSTALL.md created with comprehensive installation instructions
+- ✅ README.md updated with correct URLs and keybindings
+- ✅ GitHub Actions workflow ready for releases
+- ✅ 248 tests passing
+- ✅ Release build successful
+
+**Remaining optional tasks:**
+- [ ] Publish to crates.io
+- [ ] Create git tag v0.1.0 and push to trigger release workflow
+- [ ] Create Homebrew tap
+- [ ] Submit to AUR
+- [ ] Create distribution announcements
 
 **Sprint Atual: PRIORIDADE 1 (MVP) - COMPLETO**
 

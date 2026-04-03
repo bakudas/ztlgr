@@ -1,3 +1,8 @@
+// TODO: This module is complete but not yet integrated into app.rs
+// Integration pending: add Up/Down arrow key handling for autocomplete selection
+// Tracked in: Phase 5B Link Features
+#![allow(dead_code)]
+
 use crate::db::Database;
 use crate::link::fuzzy_match;
 use crate::note::Note;
@@ -21,7 +26,7 @@ impl LinkSuggestion {
     pub fn from_note(note: &Note, pattern: &str) -> Self {
         // Score based on title match
         let title_score = fuzzy_match(pattern, &note.title);
-        let id_score = fuzzy_match(pattern, &note.id.as_str());
+        let id_score = fuzzy_match(pattern, note.id.as_str());
         let score = title_score.max(id_score);
 
         Self {

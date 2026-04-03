@@ -1,3 +1,7 @@
+// Editor history module - partially used in codebase
+// Full undo/redo implementation ready for future use
+#![allow(dead_code)]
+
 /// Representa uma ação editável (para undo/redo)
 #[derive(Clone, Debug)]
 pub enum EditAction {

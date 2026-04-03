@@ -155,7 +155,7 @@ impl NoteEditor {
             // Calculate the position of [[
             let before = &content[cursor_pos.saturating_sub(100)..cursor_pos];
             if let Some(link_start_rel) = before.rfind("[[") {
-                let link_start = cursor_pos.saturating_sub(100) + link_start_rel;
+                let _link_start = cursor_pos.saturating_sub(100) + link_start_rel;
                 let replacement = format!("[[{}]]", note_id);
 
                 // Delete from [[ to cursor

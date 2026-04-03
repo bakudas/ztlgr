@@ -1,3 +1,6 @@
+// Search widgets - some methods reserved for future search enhancements
+#![allow(dead_code)]
+
 use crossterm::event::{KeyCode, KeyEvent};
 use ratatui::{
     layout::Rect,

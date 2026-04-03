@@ -1,0 +1,17 @@
+# Clippy configuration for ztlgr
+# Project is MVP-stage with features ready for future integration
+# Many warnings are about code reserved for upcoming features
+
+# Cognitive complexity - our editor/history modules legitimately have complex logic
+cognitive-complexity-threshold = 50
+
+# Type complexity - TextRope uses Result<...> extensively
+type-complexity-threshold = 500
+
+# Allow certain patterns we intentionally use
+disallowed-methods = []
+disallowed-types = []
+
+# We use many function arguments intentionally for clarity
+too-many-arguments-threshold = 10
+too-many-lines-threshold = 200

@@ -1,3 +1,6 @@
+// Modal types and actions - some reserved for future modal management
+#![allow(dead_code)]
+
 pub mod confirmation_modal;
 pub mod create_note_modal;
 pub mod generic_modal;

@@ -1,3 +1,8 @@
+// TODO: Custom themes feature - not yet integrated into settings.rs
+// Integration pending: add theme loading from TOML files
+// Tracked in: Theme System Enhancement
+#![allow(dead_code)]
+
 use super::Theme;
 use ratatui::style::Color;
 use serde::{Deserialize, Serialize};
