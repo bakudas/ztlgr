@@ -2,7 +2,45 @@
 
 This document provides instructions for agentic coding systems working on the ztlgr Zettelkasten TUI application.
 
-## Build & Test Commands
+## 📋 STATUS TRACKING PROTOCOL
+
+**CRITICAL: After each successful commit, you MUST update STATUS.md with:**
+
+1. **Feature/Fix Implemented**: Mark items completed in the relevant Priority section
+2. **Test Count**: Update passing tests count from `cargo test --lib` output
+3. **Next Sprint Focus**: Add next 3 items to work on
+4. **Blockers/Notes**: Document any blockers or architectural decisions
+
+**STATUS.md Structure**:
+```markdown
+## ✅ PRIORITY [N] ([PHASE]) - [STATUS]
+
+### ✅ Completed:
+- ✅ **Feature Name** (description + tests added)
+- ✅ **Feature Name 2** 
+
+### Commits:
+- `commit-hash` - Feature description (X tests)
+
+## 🟠 NEXT STEPS (Next Sprint)
+
+### [Sprint Name]:
+- [ ] Task 1
+- [ ] Task 2
+```
+
+**Update Format**:
+- Use checkmarks (✅) for completed items
+- Include test count in parentheses: `(X tests added)`
+- Keep NEXT STEPS with 3-5 prioritized items
+- Update `cargo test --lib` count after each commit
+
+**When to Update**:
+- ✅ After each git commit that adds features/fixes
+- ✅ When changing priorities or blocking issues appear
+- ❌ NOT after minor formatting/doc-only changes
+
+---
 
 ### Development Workflow
 
@@ -382,4 +420,54 @@ cargo outdated      # Check for updates
 - **Documentation**: All public APIs require rustdoc
 - **No Direct Dependencies**: Avoid external crates not in Cargo.toml
 - **File Organization**: Keep tests in same file as implementation with `#[cfg(test)]`
+
+---
+
+## 🔄 AFTER EVERY COMMIT - STATUS UPDATE WORKFLOW
+
+**MANDATORY for all agents**: After successfully committing a feature or fix, you MUST:
+
+### 1. Run tests and get final count
+```bash
+cargo test --lib 2>&1 | tail -5
+# Look for: "test result: ok. XXX passed"
+```
+
+### 2. Update STATUS.md
+Add/update the relevant section with:
+- ✅ Feature name with description
+- Test count added in parentheses: `(+20 tests)`
+- Move completed items from TODO to COMPLETED
+- Update "PRÓXIMOS PASSOS" with next 3 tasks
+
+### 3. Example STATUS.md entry
+```markdown
+- ✅ **Link Parsing Infrastructure** (Phase 5A - wiki/markdown/org formats, 33 tests)
+  - Commit: `ff7e784`
+  - Tests added: 33 (total: 198)
+```
+
+### 4. If blocking issues exist
+Add to STATUS.md:
+```markdown
+### 🔴 Blockers:
+- Issue: [description]
+- Workaround: [if applicable]
+- Ticket: [GitHub issue link]
+```
+
+**Example**: After implementing editor feature:
+
+```bash
+# After successful commit
+cargo test --lib 2>&1 | grep "test result"
+# Output: test result: ok. 209 passed
+
+# Then edit STATUS.md to add:
+# - ✅ **Editor with Undo/Redo** (rope data structure, 40 tests)
+#   - Commit: `abc1234`
+#   - Tests: 209 total passing
+```
+
+---
 
