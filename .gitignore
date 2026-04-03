@@ -1,58 +1,113 @@
-# Build artifacts
+# Rust build artifacts
 /target/
-**/*.rs.bk
-
-# Cargo lock file (include in git for binaries)
 Cargo.lock
+**/*.rs.bk
+*.pdb
 
-# IDE configurations
+# IDE and editor configurations
 .vscode/
 .idea/
 *.swp
 *.swo
 *~
+.DS_Store
+.vscode/settings.json
+.vscode/launch.json
+.idea/
+*.iml
+.project
+.settings/
+*.sublime-project
+*.sublime-workspace
 
 # OS specific files
-.DS_Store
 Thumbs.db
+.DS_Store
+.AppleDouble
+.LSOverride
+._*
 
-# Environment variables
+# Environment files
 .env
-.env.*
+.env.local
+.env.*.local
+.direnv
+.envrc
+*.pem
+*.key
 
-# Logs
+# Logs and temporary files
 *.log
-
-# Temporary files
+logs/
 *.tmp
 *.temp
+*.swp
+*~
+.#*
 
-# Database files
+# Database and vault files
 *.vault
 *.db
 *.sqlite
 *.sqlite3
+tests/**/*.db
+tests/**/*.sqlite3
 
 # Backup files
 *.bak
 *.backup
+*.orig
+*.rej
 
-# Test artifacts
+# Test artifacts and coverage
 tests/tmp/
 tests/temp/
+tests/.tmp/
+/coverage/
+*.profraw
+*.profdata
+tarpaulin-report.html
 
 # Documentation artifacts
 /book/
 /doc/generated/
+target/doc/
 
-# Coverage reports
-/coverage/
+# Nix
+result
+result-*
+.envrc.local
+.direnv.local
 
 # Release artifacts
 /release/
+/dist/
 
-# Platform-specific
+# Platform-specific binaries
 *.exe
 *.dll
 *.dylib
 *.so
+*.a
+*.lib
+
+# IntelliJ
+*.iws
+
+# Misc
+.cache/
+.cargo/
+.history/
+.java/
+.m2/
+.npm/
+.pip/
+.pytest_cache/
+.ruff_cache/
+.tox/
+.venv/
+venv/
+__pycache__/
+*.egg-info/
+dist/
+build/
