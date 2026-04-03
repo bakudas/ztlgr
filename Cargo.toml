@@ -23,7 +23,7 @@ serde_yaml = "0.9"
 
 # TUI
 ratatui = "0.26"
-crossterm = "0.27"
+crossterm = "0.29"
 
 # Date/time
 chrono = { version = "0.4", features = ["serde"] }
