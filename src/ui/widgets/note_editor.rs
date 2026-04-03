@@ -1,9 +1,11 @@
 use super::editor_state::EditorState;
+use crate::db::Database;
+use crate::link::LinkValidator;
 use crate::ui::app::Mode;
 use crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
 use ratatui::{
     layout::Rect,
-    style::Style,
+    style::{Modifier, Style},
     text::{Line, Span},
     widgets::{Block, Borders, Paragraph},
     Frame,
@@ -102,6 +104,7 @@ impl NoteEditor {
         theme: &dyn crate::config::Theme,
         mode: Mode,
         is_focused: bool,
+        db: &Database,
     ) {
         let mode_text = match mode {
             Mode::Normal => "-- NORMAL --",
@@ -120,12 +123,54 @@ impl NoteEditor {
                 Style::default().fg(theme.fg_dim()),
             ))]
         } else {
-            // Renderizar linhas com highlighting para seleção
-            let spans: Vec<Line> = content
-                .split('\n')
-                .map(|l| Line::from(l.to_string()))
+            // Render lines with link highlighting
+            let lines: Vec<Line> = content
+                .lines()
+                .enumerate()
+                .map(|(line_num, text)| {
+                    let validated_links = LinkValidator::extract_links(text, line_num, db);
+
+                    if validated_links.is_empty() {
+                        // No links, render as plain text
+                        Line::from(text.to_string())
+                    } else {
+                        // Build spans with link highlighting
+                        let mut spans = Vec::new();
+                        let mut last_end = 0;
+
+                        for link in &validated_links {
+                            let start = link.info.position.start_col;
+                            let end = link.info.position.end_col;
+
+                            // Add text before the link
+                            if last_end < start {
+                                spans.push(Span::raw(&text[last_end..start]));
+                            }
+
+                            // Add the link with highlighting
+                            let link_color = if link.is_valid {
+                                theme.link()
+                            } else {
+                                theme.error()
+                            };
+                            spans.push(Span::styled(
+                                &text[start..end],
+                                Style::default().fg(link_color).add_modifier(Modifier::BOLD),
+                            ));
+
+                            last_end = end;
+                        }
+
+                        // Add remaining text after last link
+                        if last_end < text.len() {
+                            spans.push(Span::raw(&text[last_end..]));
+                        }
+
+                        Line::from(spans)
+                    }
+                })
                 .collect();
-            spans
+            lines
         };
 
         // Indicador de unsaved

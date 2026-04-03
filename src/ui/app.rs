@@ -203,6 +203,7 @@ impl App {
             theme_ref,
             self.mode,
             self.focused_panel == Panel::Editor,
+            &*self.db,
         );
 
         if self.show_preview {

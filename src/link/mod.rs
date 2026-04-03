@@ -2,6 +2,7 @@ use std::fmt;
 use thiserror::Error;
 
 pub mod parser;
+pub mod validator;
 
 /// Represents different link format styles
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
@@ -156,6 +157,7 @@ pub type Result<T> = std::result::Result<T, LinkError>;
 
 // Re-export parser module's public items
 pub use parser::parse_link;
+pub use validator::{LinkValidator, ValidatedLink};
 
 #[cfg(test)]
 mod tests {
