@@ -147,7 +147,12 @@ impl MetadataPane {
         }
     }
 
-    fn render_field(&self, label: &str, field: MetadataField) -> Line {
+    fn render_field(
+        &self,
+        label: &str,
+        field: MetadataField,
+        theme: &dyn crate::config::Theme,
+    ) -> Line<'_> {
         let is_selected = self.selected_field == Some(field);
         let is_editable = matches!(
             field,
@@ -156,20 +161,20 @@ impl MetadataPane {
 
         let label_style = if is_selected {
             Style::default()
-                .fg(Color::Yellow)
+                .fg(theme.accent())
                 .add_modifier(Modifier::BOLD)
         } else {
-            Style::default().fg(Color::Gray)
+            Style::default().fg(theme.fg_dim())
         };
 
         let value_style = if is_selected && self.editing {
-            Style::default().fg(Color::Green).bg(Color::DarkGray)
-        } else if is_selected {
             Style::default()
-                .fg(Color::White)
-                .add_modifier(Modifier::BOLD)
+                .fg(theme.success())
+                .bg(theme.bg_secondary())
+        } else if is_selected {
+            Style::default().fg(theme.fg()).add_modifier(Modifier::BOLD)
         } else {
-            Style::default().fg(Color::White)
+            Style::default().fg(theme.fg())
         };
 
         let edit_indicator = if is_editable && is_selected {
@@ -185,7 +190,7 @@ impl MetadataPane {
         Line::from(vec![
             Span::styled(format!("{}: ", label), label_style),
             Span::styled(self.field_to_string(field), value_style),
-            Span::styled(edit_indicator, Style::default().fg(Color::Cyan)),
+            Span::styled(edit_indicator, Style::default().fg(theme.info())),
         ])
     }
 
@@ -194,41 +199,41 @@ impl MetadataPane {
 
         if let Some(note) = &self.current_note {
             // Title
-            lines.push(self.render_field("Title", MetadataField::Title));
+            lines.push(self.render_field("Title", MetadataField::Title, theme));
             lines.push(Line::from(""));
 
             // Type
-            lines.push(self.render_field("Type", MetadataField::Type));
+            lines.push(self.render_field("Type", MetadataField::Type, theme));
             lines.push(Line::from(""));
 
             // Tags
-            lines.push(self.render_field("Tags", MetadataField::Tags));
+            lines.push(self.render_field("Tags", MetadataField::Tags, theme));
             lines.push(Line::from(""));
 
             // Read-only metadata
-            lines.push(self.render_field("Created", MetadataField::CreatedAt));
-            lines.push(self.render_field("Updated", MetadataField::UpdatedAt));
+            lines.push(self.render_field("Created", MetadataField::CreatedAt, theme));
+            lines.push(self.render_field("Updated", MetadataField::UpdatedAt, theme));
             lines.push(Line::from(""));
 
             // Note ID
             lines.push(Line::from(vec![
-                Span::styled("ID: ", Style::default().fg(Color::Gray)),
-                Span::styled(note.id.as_str(), Style::default().fg(Color::DarkGray)),
+                Span::styled("ID: ", Style::default().fg(theme.fg_dim())),
+                Span::styled(note.id.as_str(), Style::default().fg(theme.fg_dim())),
             ]));
 
             // Zettel ID (if present)
             if let Some(zid) = &note.zettel_id {
                 lines.push(Line::from(vec![
-                    Span::styled("Zettel ID: ", Style::default().fg(Color::Gray)),
-                    Span::styled(zid.as_str(), Style::default().fg(Color::DarkGray)),
+                    Span::styled("Zettel ID: ", Style::default().fg(theme.fg_dim())),
+                    Span::styled(zid.as_str(), Style::default().fg(theme.fg_dim())),
                 ]));
             }
 
             // Parent ID (if present)
             if let Some(parent_id) = &note.parent_id {
                 lines.push(Line::from(vec![
-                    Span::styled("Parent: ", Style::default().fg(Color::Gray)),
-                    Span::styled(parent_id.as_str(), Style::default().fg(Color::DarkGray)),
+                    Span::styled("Parent: ", Style::default().fg(theme.fg_dim())),
+                    Span::styled(parent_id.as_str(), Style::default().fg(theme.fg_dim())),
                 ]));
             }
 
@@ -237,8 +242,8 @@ impl MetadataPane {
                 if !source.is_empty() {
                     lines.push(Line::from(""));
                     lines.push(Line::from(vec![
-                        Span::styled("Source: ", Style::default().fg(Color::Gray)),
-                        Span::styled(source, Style::default().fg(Color::Cyan)),
+                        Span::styled("Source: ", Style::default().fg(theme.fg_dim())),
+                        Span::styled(source, Style::default().fg(theme.link())),
                     ]));
                 }
             }
@@ -249,8 +254,8 @@ impl MetadataPane {
                     if !url.is_empty() {
                         lines.push(Line::from(""));
                         lines.push(Line::from(vec![
-                            Span::styled("URL: ", Style::default().fg(Color::Gray)),
-                            Span::styled(url, Style::default().fg(Color::Cyan)),
+                            Span::styled("URL: ", Style::default().fg(theme.fg_dim())),
+                            Span::styled(url, Style::default().fg(theme.link())),
                         ]));
                     }
                 }
@@ -261,8 +266,8 @@ impl MetadataPane {
                 if !aliases.is_empty() {
                     lines.push(Line::from(""));
                     lines.push(Line::from(vec![
-                        Span::styled("Aliases: ", Style::default().fg(Color::Gray)),
-                        Span::styled(aliases.join(", "), Style::default().fg(Color::White)),
+                        Span::styled("Aliases: ", Style::default().fg(theme.fg_dim())),
+                        Span::styled(aliases.join(", "), Style::default().fg(theme.fg())),
                     ]));
                 }
             }
@@ -272,14 +277,14 @@ impl MetadataPane {
                 lines.push(Line::from(""));
                 lines.push(Line::from(vec![Span::styled(
                     "Custom Fields:",
-                    Style::default().fg(Color::Gray),
+                    Style::default().fg(theme.fg_dim()),
                 )]));
                 for (key, value) in &note.metadata.custom {
                     lines.push(Line::from(vec![
-                        Span::styled(format!("  {}: ", key), Style::default().fg(Color::Gray)),
+                        Span::styled(format!("  {}: ", key), Style::default().fg(theme.fg_dim())),
                         Span::styled(
                             serde_json::to_string(value).unwrap_or_default(),
-                            Style::default().fg(Color::White),
+                            Style::default().fg(theme.fg()),
                         ),
                     ]));
                 }
@@ -293,7 +298,7 @@ impl MetadataPane {
             lines.push(Line::from(""));
             lines.push(Line::from(vec![Span::styled(
                 "j/k: Navigate  |  Enter: Edit  |  Esc: Cancel",
-                Style::default().fg(Color::DarkGray),
+                Style::default().fg(theme.fg_dim()),
             )]));
         }
 

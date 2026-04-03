@@ -1,7 +1,7 @@
 use pulldown_cmark::{Event, Parser};
 use ratatui::{
     layout::Rect,
-    style::{Color, Modifier, Style},
+    style::{Modifier, Style},
     text::{Line, Span, Text},
     widgets::{Block, Borders, Paragraph, Wrap},
     Frame,
@@ -23,7 +23,7 @@ impl PreviewPane {
     }
 
     /// Convert markdown to formatted ratatui Text
-    fn render_markdown(&self) -> Text<'static> {
+    fn render_markdown(&self, theme: &dyn crate::config::Theme) -> Text<'static> {
         if self.content.is_empty() {
             return Text::from("Select a note to preview");
         }
@@ -64,9 +64,9 @@ impl PreviewPane {
                 }
                 Event::Text(text) => {
                     let style = if in_code_block {
-                        Style::default().fg(Color::Cyan).bg(Color::Black)
+                        Style::default().fg(theme.accent()).bg(theme.bg_secondary())
                     } else {
-                        Style::default().fg(Color::White)
+                        Style::default().fg(theme.fg())
                     };
 
                     current_line.push(Span::styled(text.to_string(), style));
@@ -75,7 +75,7 @@ impl PreviewPane {
                     current_line.push(Span::styled(
                         text.to_string(),
                         Style::default()
-                            .fg(Color::Green)
+                            .fg(theme.success())
                             .add_modifier(Modifier::BOLD),
                     ));
                 }
@@ -109,7 +109,7 @@ impl PreviewPane {
     }
 
     pub fn draw(&self, f: &mut Frame, area: Rect, theme: &dyn crate::config::Theme) {
-        let text = self.render_markdown();
+        let text = self.render_markdown(theme);
 
         let paragraph = Paragraph::new(text)
             .block(
