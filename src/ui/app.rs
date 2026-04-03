@@ -18,6 +18,7 @@ use super::widgets::{
     ConfirmationModal, ConfirmationAction,
     NoteTypeSelector, NoteTypeAction,
     CreateNoteModal, CreateNoteAction,
+    SearchState, SearchResult,
 };
 use crate::config::Config;
 use crate::db::Database;
@@ -43,6 +44,9 @@ pub struct App {
 
     // Modal state
     current_modal: Option<CurrentModal>,
+
+    // Search state
+    search_state: SearchState,
 
     // Layout
     show_preview: bool,
@@ -84,6 +88,7 @@ impl App {
             preview_pane: PreviewPane::new(),
             status_bar: StatusBar::new(),
             current_modal: None,
+            search_state: SearchState::new(),
             show_preview: true,
             running: true,
         })
@@ -324,14 +329,25 @@ impl App {
 
     fn handle_search_mode(&mut self, key: KeyEvent) {
         match key.code {
-            KeyCode::Esc => self.mode = Mode::Normal,
+            KeyCode::Esc => {
+                self.mode = Mode::Normal;
+                self.search_state.clear();
+            }
             KeyCode::Enter => {
                 self.perform_search();
-                self.mode = Mode::Normal;
+                // Stay in search mode to show results
+            }
+            KeyCode::Up => {
+                self.search_state.results.select_prev();
+            }
+            KeyCode::Down => {
+                self.search_state.results.select_next();
             }
             _ => {
-                // Pass to search
-                //self.search_bar.handle_key(key);
+                // Handle input characters
+                self.search_state.input.handle_key(key);
+                // Auto-search as user types
+                self.perform_search();
             }
         }
     }
@@ -610,6 +626,52 @@ impl App {
     }
 
     fn perform_search(&mut self) {
-        // Not implemented yet
+        let query = self.search_state.input.query().to_string(); // Clone to avoid borrow issues
+        
+        if query.trim().is_empty() {
+            self.search_state.results.clear();
+            self.status_bar.set_message("Search: (type to search)");
+            return;
+        }
+
+        self.search_state.set_searching(true);
+
+        // Use FTS5 to search notes
+        match self.db.search_notes(&query, 20) {
+            Ok(search_results) => {
+                self.search_state.results.clear();
+                
+                for result in search_results {
+                    let excerpt = if result.content.len() > 100 {
+                        format!("{}...", &result.content[..100])
+                    } else {
+                        result.content.clone()
+                    };
+
+                    let search_result = SearchResult {
+                        note_id: result.id.to_string(),
+                        title: result.title.clone(),
+                        excerpt,
+                        score: 0.85, // Default score for now
+                    };
+                    self.search_state.results.add_result(search_result);
+                }
+
+                let count = self.search_state.results.count();
+                self.status_bar.set_message(&format!(
+                    "Search: '{}' - {} results (↑↓ navigate, Enter to open, Esc to cancel)",
+                    query, count
+                ));
+            }
+            Err(_e) => {
+                self.search_state.results.clear();
+                self.status_bar.set_message(&format!(
+                    "Search error for: '{}'",
+                    query
+                ));
+            }
+        }
+
+        self.search_state.set_searching(false);
     }
 }

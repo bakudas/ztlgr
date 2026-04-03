@@ -4,6 +4,7 @@ pub mod modals;
 pub mod note_editor;
 pub mod note_list;
 pub mod preview_pane;
+pub mod search;
 pub mod status_bar;
 
 pub use editor_history::{EditAction, EditHistory};
@@ -15,4 +16,5 @@ pub use modals::{
 pub use note_editor::NoteEditor;
 pub use note_list::NoteList;
 pub use preview_pane::PreviewPane;
+pub use search::{SearchInput, SearchResult, SearchResults, SearchState};
 pub use status_bar::StatusBar;
