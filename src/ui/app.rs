@@ -14,6 +14,7 @@ use crate::config::Config;
 use crate::db::Database;
 use crate::note::Note;
 use crate::error::Result;
+use crate::storage::{MarkdownStorage, Storage};
 use super::widgets::{NoteList, NoteEditor, PreviewPane, StatusBar};
 
 pub struct App {
@@ -24,6 +25,7 @@ pub struct App {
     mode: Mode,
     selected_note: Option<String>,
     notes: Vec<Note>,
+    command_buffer: String,  // For command mode input
     
     // Widgets
     note_list: NoteList,
@@ -59,6 +61,7 @@ impl App {
             mode: Mode::Normal,
             selected_note: None,
             notes,
+            command_buffer: String::new(),
             note_list: NoteList::new(),
             note_editor: NoteEditor::new(),
             preview_pane: PreviewPane::new(),
@@ -235,14 +238,54 @@ impl App {
     
     fn handle_command_mode(&mut self, key: KeyEvent) {
         match key.code {
-            KeyCode::Esc => self.mode = Mode::Normal,
-            KeyCode::Enter => {
-                //self.execute_command();
+            KeyCode::Esc => {
                 self.mode = Mode::Normal;
+                self.command_buffer.clear();
             }
-            _ => {
-                // Pass to command bar
+            KeyCode::Enter => {
+                self.execute_command();
+                self.mode = Mode::Normal;
+                self.command_buffer.clear();
             }
+            KeyCode::Backspace => {
+                self.command_buffer.pop();
+                self.status_bar.set_message(&format!(":{}", self.command_buffer));
+            }
+            KeyCode::Char(c) => {
+                self.command_buffer.push(c);
+                self.status_bar.set_message(&format!(":{}", self.command_buffer));
+            }
+            _ => {}
+        }
+    }
+    
+    fn execute_command(&mut self) {
+        let cmd = self.command_buffer.trim();
+        
+        if cmd.starts_with("rename ") {
+            // Extract new title from "rename <new_title>"
+            let new_title = cmd.strip_prefix("rename ").unwrap_or("").trim();
+            if !new_title.is_empty() && !new_title.is_empty() {
+                if let Some(selected) = &self.selected_note {
+                    if let Some(note) = self.notes.iter_mut().find(|n| n.id.as_str() == selected) {
+                        note.title = new_title.to_string();
+                        
+                        // Save to database
+                        if self.db.update_note(&note).is_ok() {
+                            tracing::info!("Note renamed: {} -> {}", selected, new_title);
+                            self.status_bar.set_message(&format!("Renamed to: {}", new_title));
+                        } else {
+                            self.status_bar.set_message("Error renaming note");
+                        }
+                    }
+                } else {
+                    self.status_bar.set_message("No note selected");
+                }
+            } else {
+                self.status_bar.set_message("Usage: rename <new_title>");
+            }
+        } else {
+            self.status_bar.set_message(&format!("Unknown command: {}", cmd));
         }
     }
     
@@ -376,7 +419,7 @@ impl App {
     
     fn save_current_note(&mut self) {
         if let Some(selected) = &self.selected_note {
-            if let Ok(id) = crate::note::NoteId::parse(selected) {
+            if let Ok(_id) = crate::note::NoteId::parse(selected) {
                 // Get the current content from the editor
                 let content = self.note_editor.get_content();
                 
@@ -386,8 +429,25 @@ impl App {
                     
                     // Save to database
                     if self.db.update_note(&note).is_ok() {
-                        tracing::info!("Note saved: {}", selected);
-                        self.status_bar.set_message("Note saved ✓");
+                        // Also save to markdown file in vault
+                        let vault_path = self.config.vault_path()
+                            .map(|p| p.to_path_buf())
+                            .unwrap_or_else(|| {
+                                directories::ProjectDirs::from("com", "ztlgr", "ztlgr")
+                                    .map(|dirs| dirs.data_dir().join("vault"))
+                                    .unwrap_or_else(|| std::path::PathBuf::from("./vault"))
+                            });
+                        
+                        let file_path = vault_path.join(format!("{}.md", note.id));
+                        let markdown_storage = MarkdownStorage::new();
+                        
+                        if markdown_storage.write_note(note, &file_path).is_ok() {
+                            tracing::info!("Note saved: {} (db + file)", selected);
+                            self.status_bar.set_message("Note saved ✓");
+                        } else {
+                            tracing::warn!("Note saved to db but failed to save to file: {}", selected);
+                            self.status_bar.set_message("Note saved to db (file save failed)");
+                        }
                     } else {
                         self.status_bar.set_message("Error saving note");
                     }
@@ -401,7 +461,8 @@ impl App {
     fn rename_note(&mut self) {
         // Switch to command mode for renaming
         self.mode = Mode::Command;
-        self.status_bar.set_message("Enter new title and press Enter");
+        self.command_buffer = "rename ".to_string();
+        self.status_bar.set_message(":rename <new_title>");
     }
     
     fn perform_search(&mut self) {

@@ -6,11 +6,24 @@ use std::panic;
 use crossterm::terminal::{disable_raw_mode, LeaveAlternateScreen};
 use crossterm::execute;
 use std::io::stdout;
+use tracing_appender;
 
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
-    // Initialize logging
-    tracing_subscriber::fmt::init();
+    // Get log file path
+    let log_dir = directories::ProjectDirs::from("com", "ztlgr", "ztlgr")
+        .map(|dirs| dirs.data_dir().to_path_buf())
+        .unwrap_or_else(|| PathBuf::from("."));
+    
+    std::fs::create_dir_all(&log_dir).ok();
+    
+    // Initialize logging to file only (not to stderr/stdout which interferes with TUI)
+    let file_appender = tracing_appender::rolling::never(&log_dir, "ztlgr.log");
+    
+    tracing_subscriber::fmt()
+        .with_writer(file_appender)
+        .with_ansi(false)
+        .init();
     
     // Setup panic hook to restore terminal state on crash
     let default_panic = panic::take_hook();
