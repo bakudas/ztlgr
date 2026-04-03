@@ -1,9 +1,9 @@
-use crate::note::Note;
+use crate::note::{Note, NoteType};
 use ratatui::{
     layout::Rect,
-    style::Style,
-    text::Text,
-    widgets::{Block, Borders},
+    style::{Modifier, Style},
+    text::{Line, Span, Text},
+    widgets::{Block, Borders, List},
     Frame,
 };
 
@@ -25,11 +25,59 @@ impl NoteList {
         selected: Option<&str>,
         is_focused: bool,
     ) {
-        use ratatui::widgets::List;
+        // Group notes by type
+        let mut items: Vec<ratatui::widgets::ListItem> = Vec::new();
 
-        let items: Vec<ratatui::widgets::ListItem> = notes
-            .iter()
-            .map(|note| {
+        // Define order of note types
+        let type_order = [
+            (NoteType::Daily, "Daily", "󰃰"),
+            (NoteType::Fleeting, "Inbox", "󰘶"),
+            (NoteType::Permanent, "Permanent", "󰐕"),
+            (
+                NoteType::Literature {
+                    source: String::new(),
+                },
+                "Literature",
+                "󰧮",
+            ),
+            (NoteType::Reference { url: None }, "Reference", "󰈙"),
+            (NoteType::Index, "Index", "󰈈"),
+        ];
+
+        let mut current_y = 0;
+
+        for (note_type, type_name, icon) in type_order.iter() {
+            // Filter notes of this type
+            let notes_of_type: Vec<&Note> = notes
+                .iter()
+                .filter(|n| match (&n.note_type, note_type) {
+                    (NoteType::Daily, NoteType::Daily) => true,
+                    (NoteType::Fleeting, NoteType::Fleeting) => true,
+                    (NoteType::Permanent, NoteType::Permanent) => true,
+                    (NoteType::Literature { .. }, NoteType::Literature { .. }) => true,
+                    (NoteType::Reference { .. }, NoteType::Reference { .. }) => true,
+                    (NoteType::Index, NoteType::Index) => true,
+                    _ => false,
+                })
+                .collect();
+
+            if notes_of_type.is_empty() {
+                continue;
+            }
+
+            // Add type header
+            let header_style = Style::default()
+                .fg(theme.accent())
+                .add_modifier(Modifier::BOLD);
+
+            let header_text =
+                Text::from(format!("{} {}", icon, type_name)).patch_style(header_style);
+
+            items.push(ratatui::widgets::ListItem::new(header_text));
+            current_y += 1;
+
+            // Add notes of this type
+            for note in notes_of_type {
                 let is_selected = Some(note.id.as_str()) == selected;
 
                 let style = if is_selected {
@@ -38,20 +86,20 @@ impl NoteList {
                     Style::default().fg(theme.fg()).bg(theme.bg())
                 };
 
-                let note_style = Style::default().fg(theme.note_color(&note.note_type));
-
                 let zettel_id = note
                     .zettel_id
                     .as_ref()
                     .map(|z| format!("[{}] ", z.as_str()))
                     .unwrap_or_default();
 
+                let prefix = if is_selected { "▶ " } else { "  " };
                 let text =
-                    Text::from(format!("{}{}", zettel_id, note.title)).patch_style(note_style);
+                    Text::from(format!("{}{}{}", prefix, zettel_id, note.title)).patch_style(style);
 
-                ratatui::widgets::ListItem::new(text).style(style)
-            })
-            .collect();
+                items.push(ratatui::widgets::ListItem::new(text));
+                current_y += 1;
+            }
+        }
 
         let border_color = if is_focused {
             theme.border_highlight()

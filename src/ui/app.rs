@@ -294,18 +294,40 @@ impl App {
                     if let Some(action) = modal.handle_key(key) {
                         match action {
                             NoteTypeAction::Selected(note_type) => {
-                                // Store the selected note type for later use
                                 self.pending_note_type = Some(note_type);
                                 
-                                // Create modal with note type in title
-                                let create_modal = CreateNoteModal::new()
-                                    .with_note_type(note_type.label());
-                                
-                                self.current_modal = Some(CurrentModal::CreateNote(create_modal));
-                                self.status_bar.set_message(&format!(
-                                    "Creating {} note - Enter title",
-                                    note_type.label()
-                                ));
+                                // Daily notes are created automatically with date as title
+                                if matches!(note_type, SelectorNoteType::Daily) {
+                                    // Check if daily note already exists for today
+                                    let today = chrono::Utc::now().format("%Y-%m-%d").to_string();
+                                    let daily_exists = self.notes.iter().any(|n| {
+                                        matches!(n.note_type, crate::note::NoteType::Daily) &&
+                                        n.created_at.format("%Y-%m-%d").to_string() == today
+                                    });
+                                    
+                                    if daily_exists {
+                                        self.status_bar.set_message("Daily note already exists for today!");
+                                        self.current_modal = None;
+                                        self.pending_note_type = None;
+                                    } else {
+                                        // Create daily note automatically
+                                        let title = format!("Daily Note - {}", today);
+                                        let note_type = crate::note::NoteType::Daily;
+                                        self.create_note_with_details(title, String::new(), note_type, true);
+                                        self.pending_note_type = None;
+                                        self.current_modal = None;
+                                        self.mode = Mode::Insert;
+                                    }
+                                } else {
+                                    // For other note types, show the CreateNoteModal
+                                    let create_modal = CreateNoteModal::new()
+                                        .with_note_type(note_type.label());
+                                    self.current_modal = Some(CurrentModal::CreateNote(create_modal));
+                                    self.status_bar.set_message(&format!(
+                                        "Creating {} note - Enter title",
+                                        note_type.label()
+                                    ));
+                                }
                             }
                             NoteTypeAction::Cancelled => {
                                 self.current_modal = None;
@@ -416,10 +438,9 @@ impl App {
     fn handle_insert_mode(&mut self, key: KeyEvent) {
         match key.code {
             KeyCode::Esc => {
+                // Always save when exiting insert mode
+                self.save_current_note();
                 self.mode = Mode::Normal;
-                if self.config.editor.auto_save_interval > 0 {
-                    self.save_current_note();
-                }
             }
             KeyCode::Char('s') if key.modifiers == KeyModifiers::CONTROL => {
                 self.save_current_note();
