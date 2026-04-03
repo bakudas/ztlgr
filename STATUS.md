@@ -34,6 +34,7 @@ Em uma semana, implementamos:
 | **Metadata Panel** | ✅ Completo | View/edit note properties (m key) |
 | **Soft Delete** | ✅ Completo | 7-day trash retention + recovery |
 | **Markdown Preview** | ✅ Completo | Rendered preview pane |
+| **UI/UX Polish** | ✅ Completo | Focus indicators, mode colors, theme consistency |
 
 **Total de Testes:** 209 passing ✅
 
@@ -50,16 +51,14 @@ Em uma semana, implementamos:
 ### 📝 Commits Recentes (Últimas 24h)
 
 ```
+282ac8a ✅ feat: add visual focus indicators to all panels
+b77d1ab ✅ feat: add mode-specific visual feedback to status bar  
+1a2fd09 ✅ feat: implement panel focus state machine
+ea06ae6 ✅ fix: replace hardcoded colors with theme methods in UI widgets
 b03325a ✅ Soft delete with trash (7-day retention + recovery)
 087bea8 ✅ Metadata panel (view/edit note properties, m key)
 5d1d290 ✅ Markdown preview rendering on startup
 ff7e784 ✅ Link parsing (wiki/markdown/org, 33 tests)
-3d8ff91 ⚙️  Improve .gitignore
-7e37387 📖 Add AI agent guidelines (STATUS tracking protocol!)
-07e8400 ✅ Storage organization (Daily/Fleeting/Permanent)
-0ef934c ✅ Command mode parser & executor (66 tests)
-5cbb03b ✅ Search mode with FTS5 (71 tests)
-b660e49 ✅ Modal system (delete, note type selector, create)
 ```
 
 ### Estrutura Base Criada
@@ -295,6 +294,53 @@ Content with [[links]] and :tags:
 6. `5d1d290` - Markdown preview rendering
 7. `087bea8` - Metadata panel for editing note properties
 8. `b03325a` - Soft delete with trash functionality (11 tests)
+
+---
+
+## 🎨 UI/UX Polish - COMPLETO ✅
+
+### Melhorias Implementadas (Última sessão)
+
+**Phase 2A: Visual Clarity & Theme Consistency** - ALL COMPLETE ✅
+
+1. **✅ Color Theme Consistency** (4 files)
+   - Substituído 7+ hardcoded colors por theme methods em metadata_pane.rs e preview_pane.rs
+   - Agora todos os widgets respeitam o sistema de temas
+   - Commits: `ea06ae6`
+
+2. **✅ Panel Focus State Machine** 
+   - Implementado Panel enum (NoteList, Editor, Right)
+   - Adicionado focused_panel tracking no App struct
+   - Panel navigation via h/l keys agora funciona perfeitamente
+   - Commit: `1a2fd09`
+
+3. **✅ Mode-Specific Visual Feedback**
+   - Status bar agora mostra modo em brackets com cores dinâmicas: `[NORMAL]`, `[INSERT]`, `[SEARCH]`, `[COMMAND]`, `[GRAPH]`
+   - Each mode has distinct color + bold styling:
+     - Normal: default color
+     - Insert: success color (green) + bold
+     - Search: accent color (yellow) + bold  
+     - Command: info color (blue) + bold
+     - Graph: warning color (red) + bold
+   - Commit: `b77d1ab`
+
+4. **✅ Visual Panel Focus Indicators**
+   - All 3 panels now highlight border when focused
+   - bright border (border_highlight) for focused panel
+   - dim border for unfocused panels
+   - Updated all panel draw functions to accept is_focused parameter
+   - Commit: `282ac8a`
+
+**Test Coverage**: 209 tests passing (100% success rate) ✅
+
+### Resultado Visual
+
+Usuário agora consegue:
+- ✅ Ver claramente qual painel tem foco (via borders)
+- ✅ Saber em qual modo está (cores + badges no status bar)
+- ✅ Navegar entre painéis com h/l (como Vim)
+- ✅ Tema consistente em todos os widgets
+- ✅ Feedback visual claro para transições de modo
 
 ---
 
