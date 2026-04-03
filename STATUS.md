@@ -3,7 +3,7 @@
 **Data Atualização:** 3 de Abril de 2026  
 **Versão:** 0.3.0 (MVP Phase Complete)  
 **Status Geral:** 🟢 MVP FUNCIONAL  
-**Testes:** 209 passing (100% success rate)
+**Testes:** 213 passing (100% success rate)
 
 ---
 
@@ -12,7 +12,7 @@
 ### Progresso Geral
 - ✅ **Infrastructure**: 100% (setup, DB, storage, themes)
 - ✅ **Core Features**: 100% (editor, search, command, modals)
-- ✅ **Link System**: 70% (parsing done, validation pending)
+- ✅ **Link System**: 80% (parsing + validation + highlighting done, autocomplete + following pending)
 - 🟠 **Polish**: 0% (next priority)
 
 ### Implementação Completa! ✅
@@ -30,19 +30,20 @@ Em uma semana, implementamos:
 | **Command Mode** | ✅ Completo | Parser + executor (:rename, :move, :tag, :delete) |
 | **Modal System** | ✅ Completo | Delete confirm, note type selector, create flow |
 | **Link Parsing** | ✅ Completo | Wiki/markdown/org formats (33 tests) |
+| **Link Validation & Highlighting** | ✅ Completo | Cyan for valid, red for invalid (4 tests) |
 | **Storage Org** | ✅ Completo | Daily/Fleeting/Permanent folder structure |
 | **Metadata Panel** | ✅ Completo | View/edit note properties (m key) |
 | **Soft Delete** | ✅ Completo | 7-day trash retention + recovery |
 | **Markdown Preview** | ✅ Completo | Rendered preview pane |
 | **UI/UX Polish** | ✅ Completo | Focus indicators, mode colors, theme consistency |
 
-**Total de Testes:** 209 passing ✅
+**Total de Testes:** 213 passing ✅
 
 ### 🎯 PRÓXIMAS PRIORIDADES (PRIORIDADE 2)
 
 | Feature | Status | Estimado |
 |---------|--------|----------|
-| **Link Validation & Highlighting** | 🔴 Pending | 2-3h |
+| **Link Validation & Highlighting** | ✅ Completo | 2-3h |
 | **Link Autocomplete** | 🔴 Pending | 2-3h |
 | **Link Following** | 🔴 Pending | 1-2h |
 | **Backlinks Display** | 🔴 Pending | 2-3h |
@@ -51,6 +52,7 @@ Em uma semana, implementamos:
 ### 📝 Commits Recentes (Últimas 24h)
 
 ```
+c4aea8c ✅ feat: add link validation and highlighting in editor
 282ac8a ✅ feat: add visual focus indicators to all panels
 b77d1ab ✅ feat: add mode-specific visual feedback to status bar  
 1a2fd09 ✅ feat: implement panel focus state machine
