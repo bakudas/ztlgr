@@ -30,6 +30,13 @@ enum RightPanel {
     Metadata,
 }
 
+#[derive(Debug, Clone, Copy, PartialEq)]
+enum Panel {
+    NoteList,
+    Editor,
+    Right, // Preview or Metadata
+}
+
 pub struct App {
     config: Config,
     db: Arc<Database>,
@@ -55,6 +62,7 @@ pub struct App {
 
     // Layout
     right_panel: RightPanel,
+    focused_panel: Panel,
     show_preview: bool,
     running: bool,
 }
@@ -97,6 +105,7 @@ impl App {
             current_modal: None,
             search_state: SearchState::new(),
             right_panel: RightPanel::Preview,
+            focused_panel: Panel::NoteList,
             show_preview: true,
             running: true,
         };
@@ -589,11 +598,47 @@ impl App {
     }
 
     fn prev_panel(&mut self) {
-        // Not implemented yet
+        match self.focused_panel {
+            Panel::NoteList => {
+                // Already at leftmost panel
+            }
+            Panel::Editor => {
+                self.focused_panel = Panel::NoteList;
+            }
+            Panel::Right => {
+                self.focused_panel = Panel::Editor;
+            }
+        }
     }
 
     fn next_panel(&mut self) {
-        // Not implemented yet
+        if !self.show_preview {
+            // Can only navigate to note list and editor
+            match self.focused_panel {
+                Panel::NoteList => {
+                    self.focused_panel = Panel::Editor;
+                }
+                Panel::Editor => {
+                    self.focused_panel = Panel::NoteList;
+                }
+                Panel::Right => {
+                    // Should not happen when preview is hidden
+                }
+            }
+        } else {
+            // All three panels available
+            match self.focused_panel {
+                Panel::NoteList => {
+                    self.focused_panel = Panel::Editor;
+                }
+                Panel::Editor => {
+                    self.focused_panel = Panel::Right;
+                }
+                Panel::Right => {
+                    self.focused_panel = Panel::NoteList;
+                }
+            }
+        }
     }
 
     fn goto_top(&mut self) {
@@ -670,6 +715,10 @@ impl App {
 
     fn toggle_preview(&mut self) {
         self.show_preview = !self.show_preview;
+        // Reset focus to editor when toggling preview
+        if self.focused_panel == Panel::Right {
+            self.focused_panel = Panel::Editor;
+        }
     }
 
     fn toggle_metadata(&mut self) {
