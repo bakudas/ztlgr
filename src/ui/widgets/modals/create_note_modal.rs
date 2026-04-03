@@ -23,6 +23,7 @@ pub struct CreateNoteModal {
     title: String,
     tags: String,
     active_field: InputField, // Which field is being edited
+    use_template: bool,       // Whether to use template
     max_title_length: usize,
     max_tags_length: usize,
 }
@@ -37,16 +38,17 @@ impl CreateNoteModal {
     pub fn new() -> Self {
         let base = GenericModal::new(
             "Create New Note",
-            "Enter note details:\n\nTitle: [                    ]\nTags:  [                    ]\n\nTab to switch fields · Enter to create · Esc to cancel",
+            "Enter note details:\n\nTitle: [                    ]\nTags:  [                    ]\n\nUse template? [Yes/No]\n\nTab to switch fields · Enter to create · Esc to cancel",
         )
         .with_buttons(vec!["Create".to_string(), "Cancel".to_string()])
-        .with_dimensions(60, 45);
+        .with_dimensions(60, 50);
 
         Self {
             base,
             title: String::new(),
             tags: String::new(),
             active_field: InputField::Title,
+            use_template: true, // Default to use template
             max_title_length: 100,
             max_tags_length: 100,
         }
@@ -56,6 +58,11 @@ impl CreateNoteModal {
     pub fn with_note_type(mut self, note_type: &str) -> Self {
         self.base.title = format!("Create New {} Note", note_type);
         self
+    }
+
+    /// Check if template should be used
+    pub fn use_template(&self) -> bool {
+        self.use_template
     }
 
     /// Get the entered title

@@ -59,6 +59,48 @@ impl NoteType {
             _ => Err(format!("Invalid note type: {}", s)),
         }
     }
+
+    /// Get default template for this note type
+    pub fn template(&self) -> String {
+        match self {
+            NoteType::Daily => {
+                let today = chrono::Utc::now().format("%Y-%m-%d");
+                format!(
+                    "# Daily Note - {}\n\n## Tasks\n- [ ] \n\n## Notes\n\n## Reflections\n",
+                    today
+                )
+            }
+            NoteType::Fleeting => "# Fleeting Note\n\nQuick capture...\n\n#tags\n".to_string(),
+            NoteType::Literature { source } => {
+                if source.is_empty() {
+                    "# Literature Note\n\nSource: \n\n## Key Points\n\n## Summary\n\n".to_string()
+                } else {
+                    format!(
+                        "# Literature Note\n\nSource: {}\n\n## Key Points\n\n## Summary\n\n",
+                        source
+                    )
+                }
+            }
+            NoteType::Permanent => {
+                "# Permanent Note\n\nCore idea/concept...\n\n## Related\n\n".to_string()
+            }
+            NoteType::Reference { url } => {
+                if let Some(url) = url {
+                    format!("# Reference\n\nURL: {}\n\n## Content\n\n", url)
+                } else {
+                    "# Reference\n\nURL: \n\n## Content\n\n".to_string()
+                }
+            }
+            NoteType::Index => {
+                "# Index Note\n\nOverview and structure...\n\n## Links\n\n".to_string()
+            }
+        }
+    }
+
+    /// Check if this note type allows multiple instances per day
+    pub fn allows_multiple_per_day(&self) -> bool {
+        !matches!(self, NoteType::Daily)
+    }
 }
 
 impl std::fmt::Display for NoteType {
@@ -80,6 +122,29 @@ impl Note {
             title,
             content,
             note_type: NoteType::default(),
+            zettel_id: None,
+            parent_id: None,
+            source: None,
+            metadata: Metadata::default(),
+            created_at: Utc::now(),
+            updated_at: Utc::now(),
+            deleted_at: None,
+        }
+    }
+
+    /// Create a note with template based on type
+    pub fn with_template(title: String, note_type: NoteType, use_template: bool) -> Self {
+        let content = if use_template {
+            note_type.template()
+        } else {
+            String::new()
+        };
+
+        Self {
+            id: NoteId::new(),
+            title,
+            content,
+            note_type,
             zettel_id: None,
             parent_id: None,
             source: None,

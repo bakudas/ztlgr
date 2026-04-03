@@ -19,6 +19,20 @@ use super::widgets::{
     NoteTypeAction, NoteTypeSelector, PreviewPane, SearchResult, SearchState, StatusBar,
 };
 use super::widgets::modals::note_type_selector::NoteType as SelectorNoteType;
+
+/// Sanitize filename by removing invalid characters
+fn sanitize_filename(name: &str) -> String {
+    let mut filename = name.to_string();
+    // Replace spaces with hyphens
+    filename = filename.replace(' ', "-");
+    // Remove invalid characters
+    filename.retain(|c| c.is_alphanumeric() || c == '-' || c == '_');
+    // Limit length
+    if filename.len() > 100 {
+        filename = filename[..100].to_string();
+    }
+    filename
+}
 use crate::config::Config;
 use crate::db::Database;
 use crate::error::Result;
@@ -303,7 +317,7 @@ impl App {
                     if let Some(action) = modal.handle_key(key) {
                         match action {
                             CreateNoteAction::Created { title, tags } => {
-                                // Use the stored note type or default to Permanent
+                                // Use the stored note type or default to Fleeting
                                 let note_type = self.pending_note_type
                                     .map(|t| match t {
                                         SelectorNoteType::Daily => crate::note::NoteType::Daily,
@@ -313,9 +327,27 @@ impl App {
                                             source: String::new(),
                                         },
                                     })
-                                    .unwrap_or(crate::note::NoteType::Permanent);
+                                    .unwrap_or(crate::note::NoteType::Fleeting); // Default to Fleeting
                                 
-                                self.create_note_with_details(title, tags, note_type);
+                                // Check if daily note already exists for today
+                                if matches!(note_type, crate::note::NoteType::Daily) {
+                                    let today = chrono::Utc::now().format("%Y-%m-%d").to_string();
+                                    let daily_exists = self.notes.iter().any(|n| {
+                                        matches!(n.note_type, crate::note::NoteType::Daily) &&
+                                        n.created_at.format("%Y-%m-%d").to_string() == today
+                                    });
+                                    
+                                    if daily_exists {
+                                        self.status_bar.set_message("Daily note already exists for today!");
+                                        self.pending_note_type = None;
+                                        self.current_modal = None;
+                                        return Ok(());
+                                    }
+                                }
+                                
+                                // Create note with template option
+                                let use_template = modal.use_template();
+                                self.create_note_with_details(title, tags, note_type, use_template);
                                 self.pending_note_type = None; // Clear after use
                                 self.current_modal = None;
                                 self.mode = Mode::Insert;
@@ -712,21 +744,20 @@ impl App {
             .set_message("Select note type (D/F/P/L for quick select)");
     }
 
-    fn create_note_with_details(&mut self, title: String, _tags: String, note_type: crate::note::NoteType) {
+    fn create_note_with_details(&mut self, title: String, _tags: String, note_type: crate::note::NoteType, use_template: bool) {
         // Save current note before creating new one
         self.save_current_note();
         
-        // Create note with specified type
-        let mut note = Note::new(title, String::new());
-        note.note_type = note_type;
+        // Create note with specified type and template option
+        let note = Note::with_template(title, note_type.clone(), use_template);
 
         if let Ok(id) = self.db.create_note(&note) {
             self.notes.insert(0, note);
             self.selected_note = Some(id.as_str().to_string());
             self.load_note();
-            self.note_editor.clear(); // Clear editor for new note
+            // Note: don't clear editor here - load_note() already set the content (template or empty)
             self.status_bar
-                .set_message(&format!("Note created successfully! (Insert mode)"));
+                .set_message(&format!("{} note created successfully!", note_type));
         } else {
             self.status_bar.set_message("Error creating note");
         }
@@ -822,11 +853,28 @@ impl App {
                                     .unwrap_or_else(|| std::path::PathBuf::from("./vault"))
                             });
 
-                        let file_path = vault_path.join(format!("{}.md", note.id));
+                        // Determine subdirectory based on note type
+                        let subdir = match &note.note_type {
+                            crate::note::NoteType::Daily => "daily",
+                            crate::note::NoteType::Fleeting => "inbox",
+                            crate::note::NoteType::Literature { .. } => "literature",
+                            crate::note::NoteType::Permanent => "permanent",
+                            crate::note::NoteType::Reference { .. } => "reference",
+                            crate::note::NoteType::Index => "index",
+                        };
+
+                        // Generate filename from zettel_id + title (or just title)
+                        let filename = note
+                            .zettel_id
+                            .as_ref()
+                            .map(|z| format!("{}-{}", z.as_str(), sanitize_filename(&note.title)))
+                            .unwrap_or_else(|| sanitize_filename(&note.title));
+
+                        let file_path = vault_path.join(subdir).join(format!("{}.md", filename));
                         let markdown_storage = MarkdownStorage::new();
 
                         if markdown_storage.write_note(note, &file_path).is_ok() {
-                            tracing::info!("Note saved: {} (db + file)", selected);
+                            tracing::info!("Note saved: {} (db + file at {})", selected, file_path.display());
                             self.status_bar.set_message("Note saved ✓");
                         } else {
                             tracing::warn!(

@@ -1,8 +1,8 @@
-use serde::{Deserialize, Serialize};
 use chrono::{DateTime, Utc};
+use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 
-use super::{ZettelId, Metadata};
+use super::{Metadata, ZettelId};
 
 pub type NoteId = crate::utils::Id<Note>;
 
@@ -12,15 +12,15 @@ pub struct Note {
     pub title: String,
     pub content: String,
     pub note_type: NoteType,
-    
+
     // Zettelkasten fields
     pub zettel_id: Option<ZettelId>,
     pub parent_id: Option<NoteId>,
     pub source: Option<String>,
-    
+
     // Metadata
     pub metadata: Metadata,
-    
+
     // Timestamps
     pub created_at: DateTime<Utc>,
     pub updated_at: DateTime<Utc>,
@@ -59,6 +59,66 @@ impl NoteType {
             _ => Err(format!("Invalid note type: {}", s)),
         }
     }
+    
+    /// Get default template for this note type
+    pub fn template(&self) -> String {
+        match self {
+            NoteType::Daily => {
+                let today = chrono::Utc::now().format("%Y-%m-%d");
+                format!(
+                    "# Daily Note - {}\n\n## Tasks\n- [ ] \n\n## Notes\n\n## Reflections\n",
+                    today
+                )
+            }
+            NoteType::Fleeting => {
+                "# Fleeting Note\n\nQuick capture...\n\n#tags\n".to_string()
+            }
+            NoteType::Literature { source } => {
+                if source.is_empty() {
+                    "# Literature Note\n\nSource: \n\n## Key Points\n\n## Summary\n\n".to_string()
+                } else {
+                    format!(
+                        "# Literature Note\n\nSource: {}\n\n## Key Points\n\n## Summary\n\n",
+                        source
+                    )
+                }
+            }
+            NoteType::Permanent => {
+                "# Permanent Note\n\nCore idea/concept...\n\n## Related\n\n".to_string()
+            }
+            NoteType::Reference { url } => {
+                if let Some(url) = url {
+                    format!("# Reference\n\nURL: {}\n\n## Content\n\n", url)
+                } else {
+                    "# Reference\n\nURL: \n\n## Content\n\n".to_string()
+                }
+            }
+            NoteType::Index => {
+                "# Index Note\n\nOverview and structure...\n\n## Links\n\n".to_string()
+            }
+        }
+    }
+    
+    /// Check if this note type allows multiple instances per day
+    pub fn allows_multiple_per_day(&self) -> bool {
+        !matches!(self, NoteType::Daily)
+    }
+}
+    }
+
+    pub fn from_str(s: &str) -> Result<Self, String> {
+        match s {
+            "daily" => Ok(NoteType::Daily),
+            "fleeting" => Ok(NoteType::Fleeting),
+            "literature" => Ok(NoteType::Literature {
+                source: String::new(),
+            }),
+            "permanent" => Ok(NoteType::Permanent),
+            "reference" => Ok(NoteType::Reference { url: None }),
+            "index" => Ok(NoteType::Index),
+            _ => Err(format!("Invalid note type: {}", s)),
+        }
+    }
 }
 
 impl std::fmt::Display for NoteType {
@@ -88,22 +148,44 @@ impl Note {
             updated_at: Utc::now(),
         }
     }
-    
+
+    /// Create a note with template based on type
+    pub fn with_template(title: String, note_type: NoteType, use_template: bool) -> Self {
+        let content = if use_template {
+            note_type.template()
+        } else {
+            String::new()
+        };
+
+        Self {
+            id: NoteId::new(),
+            title,
+            content,
+            note_type,
+            zettel_id: None,
+            parent_id: None,
+            source: None,
+            metadata: Metadata::default(),
+            created_at: Utc::now(),
+            updated_at: Utc::now(),
+        }
+    }
+
     pub fn with_type(mut self, note_type: NoteType) -> Self {
         self.note_type = note_type;
         self
     }
-    
+
     pub fn with_zettel_id(mut self, zettel_id: ZettelId) -> Self {
         self.zettel_id = Some(zettel_id);
         self
     }
-    
+
     pub fn with_parent(mut self, parent_id: NoteId) -> Self {
         self.parent_id = Some(parent_id);
         self
     }
-    
+
     pub fn touch(&mut self) {
         self.updated_at = Utc::now();
     }
@@ -112,14 +194,14 @@ impl Note {
 #[cfg(test)]
 mod tests {
     use super::*;
-    
+
     #[test]
     fn test_note_creation() {
         let note = Note::new("Test".to_string(), "Content".to_string());
         assert_eq!(note.title, "Test");
         assert!(note.zettel_id.is_none());
     }
-    
+
     #[test]
     fn test_note_type_serialization() {
         let nt = NoteType::Permanent;
