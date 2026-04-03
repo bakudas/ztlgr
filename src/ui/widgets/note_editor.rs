@@ -1,5 +1,6 @@
+use super::editor_state::EditorState;
 use crate::ui::app::Mode;
-use crossterm::event::{KeyCode, KeyEvent};
+use crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
 use ratatui::{
     layout::Rect,
     style::Style,
@@ -9,34 +10,38 @@ use ratatui::{
 };
 
 pub struct NoteEditor {
-    content: String,
-    cursor: usize, // byte offset
+    state: EditorState,
     preferred_col: Option<usize>,
 }
 
 impl NoteEditor {
     pub fn new() -> Self {
         Self {
-            content: String::new(),
-            cursor: 0,
+            state: EditorState::new(),
             preferred_col: None,
         }
     }
 
     pub fn set_content(&mut self, content: &str) {
-        self.content = content.to_string();
-        self.cursor = self.content.len();
+        self.state.set_content(content);
         self.preferred_col = None;
     }
 
     pub fn get_content(&self) -> String {
-        self.content.clone()
+        self.state.get_content()
     }
 
     pub fn clear(&mut self) {
-        self.content.clear();
-        self.cursor = 0;
+        self.state.clear();
         self.preferred_col = None;
+    }
+
+    pub fn is_dirty(&self) -> bool {
+        self.state.is_dirty()
+    }
+
+    pub fn mark_saved(&mut self) {
+        self.state.mark_saved();
     }
 
     fn prev_boundary(&self, index: usize) -> usize {
@@ -44,49 +49,42 @@ impl NoteEditor {
             return 0;
         }
 
+        let content = self.state.get_content();
         let mut i = index - 1;
-        while i > 0 && !self.content.is_char_boundary(i) {
+        while i > 0 && !content.is_char_boundary(i) {
             i -= 1;
         }
         i
     }
 
     fn next_boundary(&self, index: usize) -> usize {
-        if index >= self.content.len() {
-            return self.content.len();
+        let content = self.state.get_content();
+        if index >= content.len() {
+            return content.len();
         }
 
         let mut i = index + 1;
-        while i < self.content.len() && !self.content.is_char_boundary(i) {
+        while i < content.len() && !content.is_char_boundary(i) {
             i += 1;
         }
         i
     }
 
     fn line_col_at_cursor(&self) -> (usize, usize) {
-        let prefix = &self.content[..self.cursor];
-        let line = prefix.chars().filter(|&c| c == '\n').count();
-        let col = prefix
-            .rsplit('\n')
-            .next()
-            .map(|segment| segment.chars().count())
-            .unwrap_or(0);
-
-        (line, col)
+        self.state.cursor_line_col()
     }
 
     fn line_start(&self, pos: usize) -> usize {
-        self.content[..pos]
-            .rfind('\n')
-            .map(|idx| idx + 1)
-            .unwrap_or(0)
+        let content = self.state.get_content();
+        content[..pos].rfind('\n').map(|idx| idx + 1).unwrap_or(0)
     }
 
     fn line_end(&self, pos: usize) -> usize {
-        self.content[pos..]
+        let content = self.state.get_content();
+        content[pos..]
             .find('\n')
             .map(|idx| pos + idx)
-            .unwrap_or(self.content.len())
+            .unwrap_or(content.len())
     }
 
     fn byte_index_for_column(line_text: &str, col: usize) -> usize {
@@ -107,20 +105,37 @@ impl NoteEditor {
         };
 
         let (line, col) = self.line_col_at_cursor();
+        let content = self.state.get_content();
 
-        let lines = if self.content.is_empty() {
+        let lines = if content.is_empty() {
             vec![Line::from(Span::styled(
                 "Press 'i' to enter insert mode or 'n' to create a new note",
                 Style::default().fg(theme.fg_dim()),
             ))]
         } else {
-            self.content
+            // Renderizar linhas com highlighting para seleção
+            let spans: Vec<Line> = content
                 .split('\n')
                 .map(|l| Line::from(l.to_string()))
-                .collect()
+                .collect();
+            spans
         };
 
-        let title = format!(" Editor {} - Line {} Col {} ", mode_text, line + 1, col + 1);
+        // Indicador de unsaved
+        let unsaved_indicator = if self.state.is_dirty() {
+            " [●]"
+        } else {
+            " [✓]"
+        };
+
+        let title = format!(
+            " Editor {} - Line {} Col {} {}",
+            mode_text,
+            line + 1,
+            col + 1,
+            unsaved_indicator
+        );
+
         let visible_height = area.height.saturating_sub(2) as usize;
         let scroll_y = if visible_height > 0 && line >= visible_height {
             line - visible_height + 1
@@ -140,6 +155,7 @@ impl NoteEditor {
 
         f.render_widget(paragraph, area);
 
+        // Renderizar cursor em insert mode
         if mode == Mode::Insert && area.width > 2 && area.height > 2 && line >= scroll_y {
             let max_col = area.width.saturating_sub(3) as usize;
             let cursor_x = area.x + 1 + (col.min(max_col) as u16);
@@ -153,71 +169,107 @@ impl NoteEditor {
 
     pub fn handle_key(&mut self, key: KeyEvent) {
         match key.code {
+            // Undo: Ctrl+Z
+            KeyCode::Char('z') if key.modifiers.contains(KeyModifiers::CONTROL) => {
+                self.state.undo();
+                self.preferred_col = None;
+            }
+            // Redo: Ctrl+Y
+            KeyCode::Char('y') if key.modifiers.contains(KeyModifiers::CONTROL) => {
+                self.state.redo();
+                self.preferred_col = None;
+            }
+            // Copy: Ctrl+C
+            KeyCode::Char('c') if key.modifiers.contains(KeyModifiers::CONTROL) => {
+                self.state.copy_selection();
+            }
+            // Paste: Ctrl+V
+            KeyCode::Char('v') if key.modifiers.contains(KeyModifiers::CONTROL) => {
+                self.state.paste();
+                self.preferred_col = None;
+            }
+            // Cut: Ctrl+X
+            KeyCode::Char('x') if key.modifiers.contains(KeyModifiers::CONTROL) => {
+                self.state.cut_selection();
+                self.preferred_col = None;
+            }
+            // Caracteres normais
             KeyCode::Char(c) => {
-                self.content.insert(self.cursor, c);
-                self.cursor += c.len_utf8();
+                self.state.insert_char(c);
                 self.preferred_col = None;
             }
+            // Enter
             KeyCode::Enter => {
-                self.content.insert(self.cursor, '\n');
-                self.cursor += 1;
+                self.state.insert_char('\n');
                 self.preferred_col = None;
             }
+            // Backspace
             KeyCode::Backspace => {
-                if self.cursor > 0 {
-                    let remove_at = self.prev_boundary(self.cursor);
-                    self.content.replace_range(remove_at..self.cursor, "");
-                    self.cursor = remove_at;
-                    self.preferred_col = None;
-                }
+                self.state.delete_prev_char();
+                self.preferred_col = None;
             }
+            // Delete
             KeyCode::Delete => {
-                if self.cursor < self.content.len() {
-                    let next = self.next_boundary(self.cursor);
-                    self.content.replace_range(self.cursor..next, "");
-                    self.preferred_col = None;
-                }
+                self.state.delete_next_char();
+                self.preferred_col = None;
             }
+            // Cursor left
             KeyCode::Left => {
-                self.cursor = self.prev_boundary(self.cursor);
+                if key.modifiers.contains(KeyModifiers::SHIFT) {
+                    self.state
+                        .extend_selection(self.prev_boundary(self.state.cursor));
+                } else {
+                    self.state.cursor_left();
+                }
                 self.preferred_col = None;
             }
+            // Cursor right
             KeyCode::Right => {
-                self.cursor = self.next_boundary(self.cursor);
+                if key.modifiers.contains(KeyModifiers::SHIFT) {
+                    self.state
+                        .extend_selection(self.next_boundary(self.state.cursor));
+                } else {
+                    self.state.cursor_right();
+                }
                 self.preferred_col = None;
             }
+            // Home
             KeyCode::Home => {
-                self.cursor = self.line_start(self.cursor);
+                self.state.cursor_home();
                 self.preferred_col = None;
             }
+            // End
             KeyCode::End => {
-                self.cursor = self.line_end(self.cursor);
+                self.state.cursor_end();
                 self.preferred_col = None;
             }
+            // Up arrow
             KeyCode::Up => {
                 let (line, col) = self.line_col_at_cursor();
                 if line > 0 {
                     let target_col = self.preferred_col.unwrap_or(col);
-                    let current_start = self.line_start(self.cursor);
+                    let current_start = self.line_start(self.state.cursor);
                     let prev_end = current_start.saturating_sub(1);
                     let prev_start = self.line_start(prev_end);
-                    let prev_line = &self.content[prev_start..=prev_end];
+                    let prev_line = &self.state.get_content()[prev_start..=prev_end];
                     let prev_line_text = prev_line.strip_suffix('\n').unwrap_or(prev_line);
                     let offset = Self::byte_index_for_column(prev_line_text, target_col);
-                    self.cursor = prev_start + offset;
+                    self.state.cursor = prev_start + offset;
                     self.preferred_col = Some(target_col);
                 }
             }
+            // Down arrow
             KeyCode::Down => {
                 let (_, col) = self.line_col_at_cursor();
                 let target_col = self.preferred_col.unwrap_or(col);
-                let current_end = self.line_end(self.cursor);
-                if current_end < self.content.len() {
+                let current_end = self.line_end(self.state.cursor);
+                let content = self.state.get_content();
+                if current_end < content.len() {
                     let next_start = current_end + 1;
                     let next_end = self.line_end(next_start);
-                    let next_line = &self.content[next_start..next_end];
+                    let next_line = &content[next_start..next_end];
                     let offset = Self::byte_index_for_column(next_line, target_col);
-                    self.cursor = next_start + offset;
+                    self.state.cursor = next_start + offset;
                     self.preferred_col = Some(target_col);
                 }
             }

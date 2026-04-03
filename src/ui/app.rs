@@ -13,7 +13,12 @@ use ratatui::{
 };
 use std::sync::Arc;
 
-use super::widgets::{NoteEditor, NoteList, PreviewPane, StatusBar};
+use super::widgets::{
+    NoteEditor, NoteList, PreviewPane, StatusBar,
+    ConfirmationModal, ConfirmationAction,
+    NoteTypeSelector, NoteTypeAction,
+    CreateNoteModal, CreateNoteAction,
+};
 use crate::config::Config;
 use crate::db::Database;
 use crate::error::Result;
@@ -36,9 +41,19 @@ pub struct App {
     preview_pane: PreviewPane,
     status_bar: StatusBar,
 
+    // Modal state
+    current_modal: Option<CurrentModal>,
+
     // Layout
     show_preview: bool,
     running: bool,
+}
+
+#[derive(Debug)]
+enum CurrentModal {
+    Confirmation(ConfirmationModal),
+    NoteTypeSelector(NoteTypeSelector),
+    CreateNote(CreateNoteModal),
 }
 
 #[derive(Debug, Clone, Copy, PartialEq)]
@@ -68,6 +83,7 @@ impl App {
             note_editor: NoteEditor::new(),
             preview_pane: PreviewPane::new(),
             status_bar: StatusBar::new(),
+            current_modal: None,
             show_preview: true,
             running: true,
         })
@@ -164,17 +180,85 @@ impl App {
 
         self.status_bar
             .draw(f, status_chunks[1], theme_ref, self.mode);
+
+        // Draw modal on top if present
+        if let Some(modal) = &self.current_modal {
+            match modal {
+                CurrentModal::Confirmation(m) => m.draw(f, theme_ref),
+                CurrentModal::NoteTypeSelector(m) => m.draw(f, theme_ref),
+                CurrentModal::CreateNote(m) => m.draw(f, theme_ref),
+            }
+        }
     }
 
     fn handle_key(&mut self, key: KeyEvent) -> Result<()> {
-        match self.mode {
-            Mode::Normal => self.handle_normal_mode(key),
-            Mode::Insert => self.handle_insert_mode(key),
-            Mode::Search => self.handle_search_mode(key),
-            Mode::Command => self.handle_command_mode(key),
-            Mode::Graph => self.handle_graph_mode(key),
+        // Modal takes priority
+        if self.current_modal.is_some() {
+            self.handle_modal_key(key)?;
+        } else {
+            match self.mode {
+                Mode::Normal => self.handle_normal_mode(key),
+                Mode::Insert => self.handle_insert_mode(key),
+                Mode::Search => self.handle_search_mode(key),
+                Mode::Command => self.handle_command_mode(key),
+                Mode::Graph => self.handle_graph_mode(key),
+            }
         }
 
+        Ok(())
+    }
+
+    fn handle_modal_key(&mut self, key: KeyEvent) -> Result<()> {
+        if let Some(modal) = &mut self.current_modal {
+            match modal {
+                CurrentModal::Confirmation(modal) => {
+                    if let Some(action) = modal.handle_key(key) {
+                        match action {
+                            ConfirmationAction::Confirm => {
+                                self.confirm_delete_note();
+                            }
+                            ConfirmationAction::Cancel => {}
+                        }
+                        self.current_modal = None;
+                    }
+                }
+                CurrentModal::NoteTypeSelector(modal) => {
+                    if let Some(action) = modal.handle_key(key) {
+                        match action {
+                            NoteTypeAction::Selected(note_type) => {
+                                self.current_modal = Some(CurrentModal::CreateNote(
+                                    CreateNoteModal::new(),
+                                ));
+                                self.status_bar.set_message(&format!(
+                                    "Create new {} note (Esc to cancel)",
+                                    note_type.label()
+                                ));
+                            }
+                            NoteTypeAction::Cancelled => {
+                                self.current_modal = None;
+                            }
+                        }
+                    }
+                }
+                CurrentModal::CreateNote(modal) => {
+                    if let Some(action) = modal.handle_key(key) {
+                        match action {
+                            CreateNoteAction::Created { title, tags } => {
+                                self.create_note_with_details(title, tags);
+                                self.current_modal = None;
+                                self.mode = Mode::Insert;
+                            }
+                            CreateNoteAction::Cancelled => {
+                                self.current_modal = None;
+                            }
+                            CreateNoteAction::Error(err) => {
+                                self.status_bar.set_message(&err);
+                            }
+                        }
+                    }
+                }
+            }
+        }
         Ok(())
     }
 
@@ -400,22 +484,45 @@ impl App {
     }
 
     fn new_note(&mut self) {
-        // Create new note
-        let note = Note::new("New Note".to_string(), String::new());
+        let selector = NoteTypeSelector::new();
+        self.current_modal = Some(CurrentModal::NoteTypeSelector(selector));
+        self.status_bar.set_message("Select note type (D/F/P/L for quick select)");
+    }
+
+    fn create_note_with_details(&mut self, title: String, _tags: String) {
+        let note = Note::new(title, String::new());
+
         if let Ok(id) = self.db.create_note(&note) {
             self.notes.insert(0, note);
             self.selected_note = Some(id.as_str().to_string());
             self.load_note();
-            self.mode = Mode::Insert;
+            self.status_bar
+                .set_message(&format!("Note created (Insert mode)"));
+        } else {
+            self.status_bar.set_message("Error creating note");
         }
     }
 
     fn delete_note(&mut self) {
         if let Some(selected) = &self.selected_note {
+            if let Some(note) = self.notes.iter().find(|n| n.id.as_str() == selected) {
+                let modal = ConfirmationModal::new("Delete", &note.title);
+                self.current_modal = Some(CurrentModal::Confirmation(modal));
+            }
+        } else {
+            self.status_bar.set_message("No note selected");
+        }
+    }
+
+    fn confirm_delete_note(&mut self) {
+        if let Some(selected) = &self.selected_note {
             if let Ok(id) = crate::note::NoteId::parse(selected) {
                 if self.db.delete_note(&id).is_ok() {
                     self.notes.retain(|n| n.id.as_str() != selected);
                     self.selected_note = None;
+                    self.status_bar.set_message("Note deleted ✓");
+                } else {
+                    self.status_bar.set_message("Error deleting note");
                 }
             }
         }
