@@ -1,6 +1,8 @@
-use std::sync::Arc;
 use crossterm::{
-    event::{self, DisableMouseCapture, EnableMouseCapture, Event, KeyCode, KeyEvent, KeyModifiers, MouseEvent},
+    event::{
+        self, DisableMouseCapture, EnableMouseCapture, Event, KeyCode, KeyEvent, KeyModifiers,
+        MouseEvent,
+    },
     execute,
     terminal::{disable_raw_mode, enable_raw_mode, EnterAlternateScreen, LeaveAlternateScreen},
 };
@@ -9,30 +11,31 @@ use ratatui::{
     layout::{Constraint, Direction, Layout},
     Terminal,
 };
+use std::sync::Arc;
 
+use super::widgets::{NoteEditor, NoteList, PreviewPane, StatusBar};
 use crate::config::Config;
 use crate::db::Database;
-use crate::note::Note;
 use crate::error::Result;
+use crate::note::Note;
 use crate::storage::{MarkdownStorage, Storage};
-use super::widgets::{NoteList, NoteEditor, PreviewPane, StatusBar};
 
 pub struct App {
     config: Config,
     db: Arc<Database>,
-    
+
     // UI state
     mode: Mode,
     selected_note: Option<String>,
     notes: Vec<Note>,
-    command_buffer: String,  // For command mode input
-    
+    command_buffer: String, // For command mode input
+
     // Widgets
     note_list: NoteList,
     note_editor: NoteEditor,
     preview_pane: PreviewPane,
     status_bar: StatusBar,
-    
+
     // Layout
     show_preview: bool,
     running: bool,
@@ -50,11 +53,10 @@ pub enum Mode {
 impl App {
     pub fn new(config: Config, db: Database) -> Result<Self> {
         let db = Arc::new(db);
-        let theme = config.get_theme();
-        
+
         // Load initial notes
         let notes = db.list_notes(50, 0)?;
-        
+
         Ok(Self {
             config,
             db,
@@ -70,19 +72,19 @@ impl App {
             running: true,
         })
     }
-    
+
     pub async fn run(&mut self) -> Result<()> {
         // Setup terminal
         enable_raw_mode()?;
         let mut stdout = std::io::stdout();
         execute!(stdout, EnterAlternateScreen, EnableMouseCapture)?;
-        
+
         let backend = CrosstermBackend::new(stdout);
         let mut terminal = Terminal::new(backend)?;
-        
+
         // Main loop
         let result = self.main_loop(&mut terminal).await;
-        
+
         // Always restore terminal, even if there was an error
         let _ = disable_raw_mode();
         let _ = execute!(
@@ -90,31 +92,36 @@ impl App {
             LeaveAlternateScreen,
             DisableMouseCapture
         );
-        
+
         result
     }
-    
-    async fn main_loop(&mut self, terminal: &mut Terminal<CrosstermBackend<std::io::Stdout>>) -> Result<()> {
+
+    async fn main_loop(
+        &mut self,
+        terminal: &mut Terminal<CrosstermBackend<std::io::Stdout>>,
+    ) -> Result<()> {
         while self.running {
+            self.status_bar.tick();
+
             // Draw UI
             terminal.draw(|f| self.draw(f))?;
-            
+
             // Handle events with timeout to prevent blocking
             if crossterm::event::poll(std::time::Duration::from_millis(100))? {
                 match event::read()? {
                     Event::Key(key) => self.handle_key(key)?,
                     Event::Mouse(mouse) => self.handle_mouse(mouse)?,
-                    Event::Resize(_, _) => {}, // Terminal resize, redraw on next iteration
+                    Event::Resize(_, _) => {} // Terminal resize, redraw on next iteration
                     _ => {}
                 }
             }
         }
         Ok(())
     }
-    
+
     fn draw(&self, f: &mut ratatui::Frame) {
         let theme = self.config.get_theme();
-        
+
         // Layout
         let chunks = Layout::default()
             .direction(Direction::Horizontal)
@@ -133,25 +140,32 @@ impl App {
                 ]
             })
             .split(f.size());
-        
+
         // Draw widgets
         let theme_ref: &dyn crate::config::Theme = theme.as_ref();
-        self.note_list.draw(f, chunks[0], &self.notes, theme_ref, self.selected_note.as_deref());
+        self.note_list.draw(
+            f,
+            chunks[0],
+            &self.notes,
+            theme_ref,
+            self.selected_note.as_deref(),
+        );
         self.note_editor.draw(f, chunks[1], theme_ref, self.mode);
-        
+
         if self.show_preview {
             self.preview_pane.draw(f, chunks[2], theme_ref);
         }
-        
+
         // Status bar
         let status_chunks = Layout::default()
             .direction(Direction::Vertical)
             .constraints([Constraint::Min(2), Constraint::Length(1)])
             .split(f.size());
-        
-        self.status_bar.draw(f, status_chunks[1], theme_ref, self.mode);
+
+        self.status_bar
+            .draw(f, status_chunks[1], theme_ref, self.mode);
     }
-    
+
     fn handle_key(&mut self, key: KeyEvent) -> Result<()> {
         match self.mode {
             Mode::Normal => self.handle_normal_mode(key),
@@ -160,10 +174,10 @@ impl App {
             Mode::Command => self.handle_command_mode(key),
             Mode::Graph => self.handle_graph_mode(key),
         }
-        
+
         Ok(())
     }
-    
+
     fn handle_normal_mode(&mut self, key: KeyEvent) {
         match key.code {
             // Navigation
@@ -173,25 +187,27 @@ impl App {
             KeyCode::Char('l') => self.next_panel(),
             KeyCode::Char('g') => self.goto_top(),
             KeyCode::Char('G') => self.goto_bottom(),
-            
+
             // Actions
             KeyCode::Char('i') => self.mode = Mode::Insert,
             KeyCode::Char('n') => self.new_note(),
             KeyCode::Char('d') => self.delete_note(),
             KeyCode::Char('r') if key.modifiers == KeyModifiers::CONTROL => self.rename_note(),
-            KeyCode::Char('s') if key.modifiers == KeyModifiers::CONTROL => self.save_current_note(),
+            KeyCode::Char('s') if key.modifiers == KeyModifiers::CONTROL => {
+                self.save_current_note()
+            }
             KeyCode::Char('/') => self.mode = Mode::Search,
             KeyCode::Char(':') => self.mode = Mode::Command,
             KeyCode::Char('v') => self.mode = Mode::Graph,
-            
+
             // Links
             KeyCode::Enter => self.follow_link(),
             KeyCode::Char('o') => self.open_link_under_cursor(),
             KeyCode::Char('b') => self.go_back(),
-            
+
             // Views
             KeyCode::Char('p') => self.toggle_preview(),
-            
+
             // Quit
             KeyCode::Char('q') if key.modifiers == KeyModifiers::NONE => {
                 if self.config.editor.auto_save_interval > 0 {
@@ -199,11 +215,11 @@ impl App {
                 }
                 self.running = false;
             }
-            
+
             _ => {}
         }
     }
-    
+
     fn handle_insert_mode(&mut self, key: KeyEvent) {
         match key.code {
             KeyCode::Esc => {
@@ -221,7 +237,7 @@ impl App {
             }
         }
     }
-    
+
     fn handle_search_mode(&mut self, key: KeyEvent) {
         match key.code {
             KeyCode::Esc => self.mode = Mode::Normal,
@@ -235,7 +251,7 @@ impl App {
             }
         }
     }
-    
+
     fn handle_command_mode(&mut self, key: KeyEvent) {
         match key.code {
             KeyCode::Esc => {
@@ -249,19 +265,21 @@ impl App {
             }
             KeyCode::Backspace => {
                 self.command_buffer.pop();
-                self.status_bar.set_message(&format!(":{}", self.command_buffer));
+                self.status_bar
+                    .set_message(&format!(":{}", self.command_buffer));
             }
             KeyCode::Char(c) => {
                 self.command_buffer.push(c);
-                self.status_bar.set_message(&format!(":{}", self.command_buffer));
+                self.status_bar
+                    .set_message(&format!(":{}", self.command_buffer));
             }
             _ => {}
         }
     }
-    
+
     fn execute_command(&mut self) {
         let cmd = self.command_buffer.trim();
-        
+
         if cmd.starts_with("rename ") {
             // Extract new title from "rename <new_title>"
             let new_title = cmd.strip_prefix("rename ").unwrap_or("").trim();
@@ -269,11 +287,12 @@ impl App {
                 if let Some(selected) = &self.selected_note {
                     if let Some(note) = self.notes.iter_mut().find(|n| n.id.as_str() == selected) {
                         note.title = new_title.to_string();
-                        
+
                         // Save to database
                         if self.db.update_note(&note).is_ok() {
                             tracing::info!("Note renamed: {} -> {}", selected, new_title);
-                            self.status_bar.set_message(&format!("Renamed to: {}", new_title));
+                            self.status_bar
+                                .set_message(&format!("Renamed to: {}", new_title));
                         } else {
                             self.status_bar.set_message("Error renaming note");
                         }
@@ -285,25 +304,36 @@ impl App {
                 self.status_bar.set_message("Usage: rename <new_title>");
             }
         } else {
-            self.status_bar.set_message(&format!("Unknown command: {}", cmd));
+            self.status_bar
+                .set_message(&format!("Unknown command: {}", cmd));
         }
     }
-    
+
     fn handle_graph_mode(&mut self, key: KeyEvent) {
         match key.code {
             KeyCode::Char('q') | KeyCode::Esc => self.mode = Mode::Normal,
             _ => {}
         }
     }
-    
+
     fn handle_mouse(&mut self, mouse: MouseEvent) -> Result<()> {
         match mouse.kind {
             crossterm::event::MouseEventKind::Down(button) => {
                 match button {
                     crossterm::event::MouseButton::Left => {
-                        // Click on note list to select
-                        self.selected_note = Some(format!("note_{}", mouse.column));
-                        self.load_note();
+                        if let Ok((cols, _)) = crossterm::terminal::size() {
+                            let sidebar_width = cols * self.config.ui.sidebar_width / 100;
+                            let in_note_list_x = mouse.column > 0 && mouse.column <= sidebar_width;
+                            let first_item_row = 2_u16; // margin (1) + list top border (1)
+
+                            if in_note_list_x && mouse.row >= first_item_row {
+                                let index = (mouse.row - first_item_row) as usize;
+                                if let Some(note) = self.notes.get(index) {
+                                    self.selected_note = Some(note.id.as_str().to_string());
+                                    self.load_note();
+                                }
+                            }
+                        }
                     }
                     crossterm::event::MouseButton::Right => {
                         // Right click context menu (future feature)
@@ -321,7 +351,7 @@ impl App {
         }
         Ok(())
     }
-    
+
     fn next_note(&mut self) {
         if let Some(selected) = &self.selected_note {
             if let Some(pos) = self.notes.iter().position(|n| n.id.as_str() == selected) {
@@ -335,7 +365,7 @@ impl App {
             self.load_note();
         }
     }
-    
+
     fn prev_note(&mut self) {
         if let Some(selected) = &self.selected_note {
             if let Some(pos) = self.notes.iter().position(|n| n.id.as_str() == selected) {
@@ -346,29 +376,29 @@ impl App {
             }
         }
     }
-    
+
     fn prev_panel(&mut self) {
         // Not implemented yet
     }
-    
+
     fn next_panel(&mut self) {
         // Not implemented yet
     }
-    
+
     fn goto_top(&mut self) {
         if !self.notes.is_empty() {
             self.selected_note = Some(self.notes[0].id.as_str().to_string());
             self.load_note();
         }
     }
-    
+
     fn goto_bottom(&mut self) {
         if !self.notes.is_empty() {
             self.selected_note = Some(self.notes[self.notes.len() - 1].id.as_str().to_string());
             self.load_note();
         }
     }
-    
+
     fn new_note(&mut self) {
         // Create new note
         let note = Note::new("New Note".to_string(), String::new());
@@ -379,7 +409,7 @@ impl App {
             self.mode = Mode::Insert;
         }
     }
-    
+
     fn delete_note(&mut self) {
         if let Some(selected) = &self.selected_note {
             if let Ok(id) = crate::note::NoteId::parse(selected) {
@@ -390,63 +420,70 @@ impl App {
             }
         }
     }
-    
+
     fn follow_link(&mut self) {
         // Not implemented yet
     }
-    
+
     fn open_link_under_cursor(&mut self) {
         // Not implemented yet
     }
-    
+
     fn go_back(&mut self) {
         // Not implemented yet
     }
-    
+
     fn toggle_preview(&mut self) {
         self.show_preview = !self.show_preview;
     }
-    
+
     fn load_note(&mut self) {
         if let Some(selected) = &self.selected_note {
             if let Ok(id) = crate::note::NoteId::parse(selected) {
                 if let Ok(Some(note)) = self.db.get_note(&id) {
                     self.note_editor.set_content(&note.content);
+                    self.preview_pane.set_content(&note.content);
                 }
             }
         }
     }
-    
+
     fn save_current_note(&mut self) {
         if let Some(selected) = &self.selected_note {
             if let Ok(_id) = crate::note::NoteId::parse(selected) {
                 // Get the current content from the editor
                 let content = self.note_editor.get_content();
-                
+
                 // Find the note and update it
                 if let Some(note) = self.notes.iter_mut().find(|n| n.id.as_str() == selected) {
                     note.content = content;
-                    
+
                     // Save to database
                     if self.db.update_note(&note).is_ok() {
                         // Also save to markdown file in vault
-                        let vault_path = self.config.vault_path()
+                        let vault_path = self
+                            .config
+                            .vault_path()
                             .map(|p| p.to_path_buf())
                             .unwrap_or_else(|| {
                                 directories::ProjectDirs::from("com", "ztlgr", "ztlgr")
                                     .map(|dirs| dirs.data_dir().join("vault"))
                                     .unwrap_or_else(|| std::path::PathBuf::from("./vault"))
                             });
-                        
+
                         let file_path = vault_path.join(format!("{}.md", note.id));
                         let markdown_storage = MarkdownStorage::new();
-                        
+
                         if markdown_storage.write_note(note, &file_path).is_ok() {
                             tracing::info!("Note saved: {} (db + file)", selected);
                             self.status_bar.set_message("Note saved ✓");
                         } else {
-                            tracing::warn!("Note saved to db but failed to save to file: {}", selected);
-                            self.status_bar.set_message("Note saved to db (file save failed)");
+                            tracing::warn!(
+                                "Note saved to db but failed to save to file: {}",
+                                selected
+                            );
+                            self.status_bar
+                                .set_message("Note saved to db (file save failed)");
                         }
                     } else {
                         self.status_bar.set_message("Error saving note");
@@ -457,14 +494,14 @@ impl App {
             self.status_bar.set_message("No note selected");
         }
     }
-    
+
     fn rename_note(&mut self) {
         // Switch to command mode for renaming
         self.mode = Mode::Command;
         self.command_buffer = "rename ".to_string();
         self.status_bar.set_message(":rename <new_title>");
     }
-    
+
     fn perform_search(&mut self) {
         // Not implemented yet
     }

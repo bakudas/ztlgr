@@ -21,6 +21,15 @@ impl StatusBar {
         self.message_timeout = 50; // Display for ~50 frames (~1 second)
     }
 
+    pub fn tick(&mut self) {
+        if self.message_timeout > 0 {
+            self.message_timeout -= 1;
+            if self.message_timeout == 0 {
+                self.message.clear();
+            }
+        }
+    }
+
     pub fn draw(&self, f: &mut Frame, area: Rect, theme: &dyn crate::config::Theme, mode: Mode) {
         let mode_str = match mode {
             Mode::Normal => "NORMAL",

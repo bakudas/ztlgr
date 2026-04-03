@@ -73,10 +73,7 @@ impl SetupWizard {
             .unwrap_or("vault")
             .to_string();
 
-        // Try to set path if vault_path is available
-        if let Some(path) = config.vault.path.as_mut() {
-            *path = vault_path.clone();
-        }
+        config.vault.path = Some(vault_path.clone());
 
         config.ui.theme = self.choose_theme()?;
 
