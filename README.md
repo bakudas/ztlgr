@@ -1,6 +1,6 @@
 # ztlgr
 
-A terminal-based note-taking application with Zettelkasten methodology, built with Rust.
+A simple and fast terminal-based note-taking application with Zettelkasten methodology, built with Rust.
 
 **[Installation Guide](INSTALL.md)** | **[Documentation](#)** | **[Changelog](CHANGELOG.md)**
 
@@ -12,7 +12,7 @@ A terminal-based note-taking application with Zettelkasten methodology, built wi
 - **Link System**: Wiki-style links `[[note-title]]` with backlinks
 - **Themes**: Dracula (default), Gruvbox, Nord, Solarized, and custom themes
 - **Vim Keybindings**: Modal editing with familiar vim shortcuts
-- **Future-Proof Architecture**: Multi-agent system ready for extensions
+- **Future-Proof Architecture**: Local files, smart db indexes and multi-agent system ready for extensions
 
 ## Installation
 
@@ -45,6 +45,7 @@ ztlgr
 - `/` - Search
 - `v` - Graph view
 - `p` - Toggle preview
+- `m` - Toggle metadata
 - `:q` - Quit (Vim-style)
 
 ### Insert Mode
