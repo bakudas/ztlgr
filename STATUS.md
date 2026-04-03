@@ -1,7 +1,7 @@
 # Status do Projeto ztlgr
 
 **Data Atualização:** 3 de Abril de 2026  
-**Versão:** 0.1.0 (Released 🎉)  
+**Versão:** 0.1.1 (Released 🎉)  
 **Status Geral:** 🟢 RELEASED - Available on GitHub  
 **Testes:** 248 passing (100% success rate)
 
@@ -15,11 +15,18 @@
 - ✅ **Link System**: 100% (parsing + validation + highlighting + autocomplete + following + backlinks)
 - ✅ **Distribution**: 100% (CI/CD, release workflow, documentation)
 
-### 🚀 RELEASED v0.1.0
+### 🚀 LATEST RELEASE: v0.1.1
 
 **Release Date:** April 3, 2026  
-**Release Tag:** v0.1.0  
-**GitHub Release:** https://github.com/bakudas/ztlgr/releases/tag/v0.1.0
+**Release Tag:** v0.1.1  
+**GitHub Release:** https://github.com/bakudas/ztlgr/releases/tag/v0.1.1
+
+**What's New in v0.1.1:**
+- ✨ **Real-time Markdown Preview** - See rendered markdown as you type
+- 🐛 **Fixed UTF-8 crash** - Backspace/delete now handles accents and emojis
+- 🐛 **Fixed line deletion bug** - No more deleting entire lines accidentally
+- 🎨 **Improved markdown rendering** - Better headings, code blocks, lists, links
+- 📏 **Text wrapping** - Proper word wrapping prevents overflow
 
 **Available Platforms:**
 - Linux x86_64
@@ -31,13 +38,18 @@
 **Installation:**
 ```bash
 # Via Cargo
-cargo install ztlgr
+cargo install ztlgr --version 0.1.1
 
 # Via Binary
-curl -LO https://github.com/bakudas/ztlgr/releases/download/v0.1.0/ztlgr-0.1.0-$(uname -s)-$(uname -m).tar.gz
+curl -LO https://github.com/bakudas/ztlgr/releases/download/v0.1.1/ztlgr-0.1.1-$(uname -s)-$(uname -m).tar.gz
 tar -xzf ztlgr-*.tar.gz
 sudo mv ztlgr /usr/local/bin/
 ```
+
+### Previous Release: v0.1.0
+
+**Release Date:** April 3, 2026  
+**GitHub Release:** https://github.com/bakudas/ztlgr/releases/tag/v0.1.0
 
 **Sprint Atual: PRIORIDADE 1 (MVP) - COMPLETO**
 

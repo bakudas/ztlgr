@@ -16,6 +16,45 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Binary checksums for verification
 - Automatic crates.io publishing
 
+## [0.1.1] - 2025-04-03
+
+### Added
+- **Real-time Markdown Preview**
+  - Preview pane now updates instantly as you type
+  - See rendered markdown without saving or switching modes
+  - Improved editing workflow with live feedback
+  - Performance optimized: only renders when preview is visible
+
+### Fixed
+- **Critical: UTF-8 Crash on Backspace/Delete**
+  - Fixed panic when backspacing multi-byte characters (accents, emojis)
+  - Prevented crash when cursor at invalid UTF-8 boundaries
+  - Added safe string slicing with `.get()` instead of direct indexing
+  
+- **Multi-line Deletion Bug**
+  - Fixed entire lines being deleted when backspacing at line start
+  - Corrected merge logic in `TextRope::delete_range()`
+  - Lines now properly merge without losing content
+
+### Improved
+- **Markdown Rendering in Preview**
+  - Proper heading styles with colors (H1-H6)
+  - Bold, italic, and bold+italic text formatting
+  - Inline code blocks with accent color
+  - Code blocks with language identifiers
+  - Ordered and unordered lists with proper markers
+  - Horizontal rules styled with theme
+  - Links with underlined style and URL display
+  
+- **Text Wrapping**
+  - Word-based wrapping prevents overflow
+  - Proper width calculation based on panel size
+  - Text respects panel boundaries
+  
+- **Navigation**
+  - `j/k` keys scroll preview when panel has focus
+  - Better panel focus handling
+
 ## [0.1.0] - 2025-04-03
 
 ### Added
