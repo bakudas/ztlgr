@@ -473,6 +473,12 @@ impl App {
             _ => {
                 // Pass to editor
                 self.note_editor.handle_key(key);
+                
+                // Update preview in real-time if preview is visible
+                if self.show_preview && matches!(self.right_panel, RightPanel::Preview) {
+                    let content = self.note_editor.get_content();
+                    self.preview_pane.set_content(&content);
+                }
             }
         }
     }
@@ -879,7 +885,12 @@ impl App {
             // Toggle between preview and metadata
             self.right_panel = match self.right_panel {
                 RightPanel::Preview => RightPanel::Metadata,
-                RightPanel::Metadata => RightPanel::Preview,
+                RightPanel::Metadata => {
+                    // When switching back to preview, update with current content
+                    let content = self.note_editor.get_content();
+                    self.preview_pane.set_content(&content);
+                    RightPanel::Preview
+                }
             };
         }
     }
