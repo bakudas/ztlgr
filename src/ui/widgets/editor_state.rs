@@ -73,50 +73,27 @@ impl TextRope {
             // Deletar na mesma linha
             if start_line < self.lines.len() {
                 let max_col = self.lines[start_line].len();
-                self.lines[start_line].drain(start_col..end_col.min(max_col));
-            }
-        } else if start_line < self.lines.len() {
-            // Deletar múltiplas linhas
-            let mut merged = String::new();
-
-            // Pega resto da linha start
-            let start_rest = self.lines[start_line][start_col..].to_string();
-            merged.push_str(&start_rest);
-
-            // Adiciona parte da linha end (se existir)
-            if end_line < self.lines.len() {
-                let max_end_col = self.lines[end_line].len();
-                let end_part = self.lines[end_line][..end_col.min(max_end_col)].to_string();
-                merged.push_str(&end_part);
-            }
-
-            // Remove linhas intermediárias
-            for _ in start_line..=end_line {
-                if start_line < self.lines.len() {
-                    self.lines.remove(start_line);
+                if start_col < max_col && end_col <= max_col {
+                    self.lines[start_line].drain(start_col..end_col);
                 }
             }
-
-            // Insere linha merged
-            if start_line <= self.lines.len() {
-                self.lines.insert(start_line, merged);
-            }
-        } else if start_line < self.lines.len() {
+        } else if start_line < self.lines.len() && end_line < self.lines.len() {
             // Deletar múltiplas linhas
             let mut merged = String::new();
 
-            // Pega resto da linha start
-            let start_rest = self.lines[start_line][start_col..].to_string();
-            merged.push_str(&start_rest);
+            // Pega parte inicial da linha start (antes do range)
+            if start_col <= self.lines[start_line].len() {
+                let start_part = self.lines[start_line][..start_col].to_string();
+                merged.push_str(&start_part);
+            }
 
-            // Adiciona parte da linha end (se existir)
-            if end_line < self.lines.len() {
-                let end_part =
-                    self.lines[end_line][..end_col.min(self.lines[end_line].len())].to_string();
+            // Adiciona parte final da linha end (depois do range)
+            if end_col <= self.lines[end_line].len() {
+                let end_part = self.lines[end_line][end_col..].to_string();
                 merged.push_str(&end_part);
             }
 
-            // Remove linhas intermediárias
+            // Remove linhas intermediárias (da start_line até end_line)
             for _ in start_line..=end_line {
                 if start_line < self.lines.len() {
                     self.lines.remove(start_line);
