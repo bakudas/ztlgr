@@ -1,4 +1,5 @@
 use parking_lot::Mutex;
+use rusqlite::{types::Type, Row};
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
 
@@ -10,6 +11,51 @@ pub use rusqlite;
 pub struct Database {
     conn: Arc<Mutex<rusqlite::Connection>>,
     path: PathBuf,
+}
+
+fn parse_error(column: usize, message: String) -> rusqlite::Error {
+    rusqlite::Error::FromSqlConversionFailure(
+        column,
+        Type::Text,
+        Box::new(std::io::Error::new(
+            std::io::ErrorKind::InvalidData,
+            message,
+        )),
+    )
+}
+
+fn note_from_row(row: &Row<'_>) -> rusqlite::Result<Note> {
+    let id_raw: String = row.get(0)?;
+    let note_type_raw: String = row.get(3)?;
+
+    let id = NoteId::parse(&id_raw)
+        .map_err(|e| parse_error(0, format!("invalid note id '{}': {}", id_raw, e)))?;
+    let note_type = NoteType::from_str(&note_type_raw)
+        .map_err(|e| parse_error(3, format!("invalid note type '{}': {}", note_type_raw, e)))?;
+
+    Ok(Note {
+        id,
+        title: row.get(1)?,
+        content: row.get(2)?,
+        note_type,
+        zettel_id: row
+            .get::<_, Option<String>>(4)?
+            .and_then(|s| ZettelId::parse(&s).ok()),
+        parent_id: row
+            .get::<_, Option<String>>(5)?
+            .and_then(|s| NoteId::parse(&s).ok()),
+        source: row.get(6)?,
+        metadata: row
+            .get::<_, Option<String>>(7)?
+            .and_then(|s| serde_json::from_str(&s).ok())
+            .unwrap_or_default(),
+        created_at: chrono::DateTime::parse_from_rfc3339(&row.get::<_, String>(8)?)
+            .map(|dt| dt.with_timezone(&chrono::Utc))
+            .unwrap_or_else(|_| chrono::Utc::now()),
+        updated_at: chrono::DateTime::parse_from_rfc3339(&row.get::<_, String>(9)?)
+            .map(|dt| dt.with_timezone(&chrono::Utc))
+            .unwrap_or_else(|_| chrono::Utc::now()),
+    })
 }
 
 impl Database {
@@ -77,31 +123,7 @@ impl Database {
         ).map_err(ZtlgrError::Database)?;
 
         let note = stmt
-            .query_row(rusqlite::params![id.as_str()], |row| {
-                Ok(Note {
-                    id: NoteId::parse(&row.get::<_, String>(0)?).unwrap(),
-                    title: row.get(1)?,
-                    content: row.get(2)?,
-                    note_type: NoteType::from_str(&row.get::<_, String>(3)?).unwrap(),
-                    zettel_id: row
-                        .get::<_, Option<String>>(4)?
-                        .and_then(|s| ZettelId::parse(&s).ok()),
-                    parent_id: row
-                        .get::<_, Option<String>>(5)?
-                        .and_then(|s| NoteId::parse(&s).ok()),
-                    source: row.get(6)?,
-                    metadata: row
-                        .get::<_, Option<String>>(7)?
-                        .and_then(|s| serde_json::from_str(&s).ok())
-                        .unwrap_or_default(),
-                    created_at: chrono::DateTime::parse_from_rfc3339(&row.get::<_, String>(8)?)
-                        .map(|dt| dt.with_timezone(&chrono::Utc))
-                        .unwrap_or_else(|_| chrono::Utc::now()),
-                    updated_at: chrono::DateTime::parse_from_rfc3339(&row.get::<_, String>(9)?)
-                        .map(|dt| dt.with_timezone(&chrono::Utc))
-                        .unwrap_or_else(|_| chrono::Utc::now()),
-                })
-            })
+            .query_row(rusqlite::params![id.as_str()], note_from_row)
             .ok();
 
         Ok(note)
@@ -155,31 +177,10 @@ impl Database {
         ).map_err(ZtlgrError::Database)?;
 
         let notes = stmt
-            .query_map(rusqlite::params![limit as i32, offset as i32], |row| {
-                Ok(Note {
-                    id: NoteId::parse(&row.get::<_, String>(0)?).unwrap(),
-                    title: row.get(1)?,
-                    content: row.get(2)?,
-                    note_type: NoteType::from_str(&row.get::<_, String>(3)?).unwrap(),
-                    zettel_id: row
-                        .get::<_, Option<String>>(4)?
-                        .and_then(|s| ZettelId::parse(&s).ok()),
-                    parent_id: row
-                        .get::<_, Option<String>>(5)?
-                        .and_then(|s| NoteId::parse(&s).ok()),
-                    source: row.get(6)?,
-                    metadata: row
-                        .get::<_, Option<String>>(7)?
-                        .and_then(|s| serde_json::from_str(&s).ok())
-                        .unwrap_or_default(),
-                    created_at: chrono::DateTime::parse_from_rfc3339(&row.get::<_, String>(8)?)
-                        .map(|dt| dt.with_timezone(&chrono::Utc))
-                        .unwrap_or_else(|_| chrono::Utc::now()),
-                    updated_at: chrono::DateTime::parse_from_rfc3339(&row.get::<_, String>(9)?)
-                        .map(|dt| dt.with_timezone(&chrono::Utc))
-                        .unwrap_or_else(|_| chrono::Utc::now()),
-                })
-            })
+            .query_map(
+                rusqlite::params![limit as i32, offset as i32],
+                note_from_row,
+            )
             .map_err(ZtlgrError::Database)?
             .collect::<std::result::Result<Vec<_>, _>>()
             .map_err(ZtlgrError::Database)?;
@@ -200,31 +201,7 @@ impl Database {
         ).map_err(ZtlgrError::Database)?;
 
         let notes = stmt
-            .query_map(rusqlite::params![query, limit as i32], |row| {
-                Ok(Note {
-                    id: NoteId::parse(&row.get::<_, String>(0)?).unwrap(),
-                    title: row.get(1)?,
-                    content: row.get(2)?,
-                    note_type: NoteType::from_str(&row.get::<_, String>(3)?).unwrap(),
-                    zettel_id: row
-                        .get::<_, Option<String>>(4)?
-                        .and_then(|s| ZettelId::parse(&s).ok()),
-                    parent_id: row
-                        .get::<_, Option<String>>(5)?
-                        .and_then(|s| NoteId::parse(&s).ok()),
-                    source: row.get(6)?,
-                    metadata: row
-                        .get::<_, Option<String>>(7)?
-                        .and_then(|s| serde_json::from_str(&s).ok())
-                        .unwrap_or_default(),
-                    created_at: chrono::DateTime::parse_from_rfc3339(&row.get::<_, String>(8)?)
-                        .map(|dt| dt.with_timezone(&chrono::Utc))
-                        .unwrap_or_else(|_| chrono::Utc::now()),
-                    updated_at: chrono::DateTime::parse_from_rfc3339(&row.get::<_, String>(9)?)
-                        .map(|dt| dt.with_timezone(&chrono::Utc))
-                        .unwrap_or_else(|_| chrono::Utc::now()),
-                })
-            })
+            .query_map(rusqlite::params![query, limit as i32], note_from_row)
             .map_err(ZtlgrError::Database)?
             .collect::<std::result::Result<Vec<_>, _>>()
             .map_err(ZtlgrError::Database)?;
