@@ -1,8 +1,8 @@
 # Status do Projeto ztlgr
 
 **Data Atualização:** 3 de Abril de 2026  
-**Versão:** 0.3.0 (MVP Ready for Distribution)  
-**Status Geral:** 🟢 MVP READY FOR RELEASE  
+**Versão:** 0.1.0 (Released 🎉)  
+**Status Geral:** 🟢 RELEASED - Available on GitHub  
 **Testes:** 248 passing (100% success rate)
 
 ---
@@ -12,25 +12,32 @@
 ### Progresso Geral
 - ✅ **Infrastructure**: 100% (setup, DB, storage, themes)
 - ✅ **Core Features**: 100% (editor, search, command, modals)
-- ✅ **Link System**: 100% (parsing + validation + highlighting + autocomplete + following + backlinks all complete!)
-- ✅ **Distribution Setup**: 100% (INSTALL.md, GitHub Actions, README updates)
+- ✅ **Link System**: 100% (parsing + validation + highlighting + autocomplete + following + backlinks)
+- ✅ **Distribution**: 100% (CI/CD, release workflow, documentation)
 
-### 🚀 READY FOR DISTRIBUTION
+### 🚀 RELEASED v0.1.0
 
-All critical tasks completed:
-- ✅ Repository URL correct (github.com/bakudas/ztlgr)
-- ✅ INSTALL.md created with comprehensive installation instructions
-- ✅ README.md updated with correct URLs and keybindings
-- ✅ GitHub Actions workflow ready for releases
-- ✅ 248 tests passing
-- ✅ Release build successful
+**Release Date:** April 3, 2026  
+**Release Tag:** v0.1.0  
+**GitHub Release:** https://github.com/bakudas/ztlgr/releases/tag/v0.1.0
 
-**Remaining optional tasks:**
-- [ ] Publish to crates.io
-- [ ] Create git tag v0.1.0 and push to trigger release workflow
-- [ ] Create Homebrew tap
-- [ ] Submit to AUR
-- [ ] Create distribution announcements
+**Available Platforms:**
+- Linux x86_64
+- Linux ARM64
+- macOS x86_64 (Intel)
+- macOS ARM64 (Apple Silicon)
+- Windows x86_64
+
+**Installation:**
+```bash
+# Via Cargo
+cargo install ztlgr
+
+# Via Binary
+curl -LO https://github.com/bakudas/ztlgr/releases/download/v0.1.0/ztlgr-0.1.0-$(uname -s)-$(uname -m).tar.gz
+tar -xzf ztlgr-*.tar.gz
+sudo mv ztlgr /usr/local/bin/
+```
 
 **Sprint Atual: PRIORIDADE 1 (MVP) - COMPLETO**
 
