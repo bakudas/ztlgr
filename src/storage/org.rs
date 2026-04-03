@@ -161,6 +161,7 @@ impl Storage for OrgStorage {
             metadata,
             created_at: created,
             updated_at: updated,
+            deleted_at: None,
         })
     }
 

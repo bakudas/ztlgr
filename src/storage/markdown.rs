@@ -201,6 +201,7 @@ impl Storage for MarkdownStorage {
             metadata,
             created_at: created,
             updated_at: updated,
+            deleted_at: None,
         })
     }
 

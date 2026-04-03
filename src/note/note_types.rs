@@ -21,6 +21,7 @@ pub struct Note {
     // Timestamps
     pub created_at: DateTime<Utc>,
     pub updated_at: DateTime<Utc>,
+    pub deleted_at: Option<DateTime<Utc>>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
@@ -85,6 +86,7 @@ impl Note {
             metadata: Metadata::default(),
             created_at: Utc::now(),
             updated_at: Utc::now(),
+            deleted_at: None,
         }
     }
 

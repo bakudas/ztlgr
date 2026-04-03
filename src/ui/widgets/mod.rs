@@ -10,7 +10,7 @@ pub mod search;
 pub mod status_bar;
 
 pub use command::{Command, CommandContext, CommandExecutor, CommandParser, CommandResult};
-pub use metadata_pane::{MetadataField, MetadataPane};
+pub use metadata_pane::MetadataPane;
 pub use modals::{
     ConfirmationAction, ConfirmationModal, CreateNoteAction, CreateNoteModal, NoteTypeAction,
     NoteTypeSelector,

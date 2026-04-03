@@ -40,6 +40,7 @@ mod tests {
             metadata: Default::default(),
             created_at: Utc::now(),
             updated_at: Utc::now(),
+            deleted_at: None,
         };
 
         let storage = MarkdownStorage::new();
@@ -76,6 +77,7 @@ mod tests {
             metadata: Default::default(),
             created_at: Utc::now(),
             updated_at: Utc::now(),
+            deleted_at: None,
         };
 
         let storage = MarkdownStorage::new();
@@ -113,6 +115,7 @@ mod tests {
             metadata: Default::default(),
             created_at: Utc::now(),
             updated_at: Utc::now(),
+            deleted_at: None,
         };
 
         let storage = MarkdownStorage::new();

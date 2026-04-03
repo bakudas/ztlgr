@@ -1,4 +1,4 @@
-use pulldown_cmark::{CowStr, Event, Parser};
+use pulldown_cmark::{Event, Parser};
 use ratatui::{
     layout::Rect,
     style::{Color, Modifier, Style},

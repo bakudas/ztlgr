@@ -24,6 +24,7 @@ CREATE TABLE IF NOT EXISTS notes (
     -- Timestamps
     created_at TEXT NOT NULL,
     updated_at TEXT NOT NULL,
+    deleted_at TEXT,
     
     -- Status
     status TEXT DEFAULT 'active',
