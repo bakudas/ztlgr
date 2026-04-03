@@ -1,3 +1,4 @@
+pub mod backlinks_pane;
 pub mod command;
 pub mod editor_history;
 pub mod editor_state;
@@ -10,6 +11,7 @@ pub mod preview_pane;
 pub mod search;
 pub mod status_bar;
 
+pub use backlinks_pane::{BacklinkItem, BacklinksPane};
 pub use command::{Command, CommandContext, CommandExecutor, CommandParser, CommandResult};
 pub use link_autocomplete::{LinkAutocomplete, LinkSuggestion};
 pub use metadata_pane::MetadataPane;
