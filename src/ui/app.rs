@@ -15,14 +15,20 @@ use std::sync::Arc;
 
 use super::widgets::{
     Command, CommandContext, CommandExecutor, CommandParser, CommandResult, ConfirmationAction,
-    ConfirmationModal, CreateNoteAction, CreateNoteModal, NoteEditor, NoteList, NoteTypeAction,
-    NoteTypeSelector, PreviewPane, SearchResult, SearchState, StatusBar,
+    ConfirmationModal, CreateNoteAction, CreateNoteModal, MetadataPane, NoteEditor, NoteList,
+    NoteTypeAction, NoteTypeSelector, PreviewPane, SearchResult, SearchState, StatusBar,
 };
 use crate::config::Config;
 use crate::db::Database;
 use crate::error::Result;
 use crate::note::Note;
 use crate::storage::{MarkdownStorage, Storage};
+
+#[derive(Debug, Clone, Copy, PartialEq)]
+enum RightPanel {
+    Preview,
+    Metadata,
+}
 
 pub struct App {
     config: Config,
@@ -38,6 +44,7 @@ pub struct App {
     note_list: NoteList,
     note_editor: NoteEditor,
     preview_pane: PreviewPane,
+    metadata_pane: MetadataPane,
     status_bar: StatusBar,
 
     // Modal state
@@ -47,6 +54,7 @@ pub struct App {
     search_state: SearchState,
 
     // Layout
+    right_panel: RightPanel,
     show_preview: bool,
     running: bool,
 }
@@ -84,9 +92,11 @@ impl App {
             note_list: NoteList::new(),
             note_editor: NoteEditor::new(),
             preview_pane: PreviewPane::new(),
+            metadata_pane: MetadataPane::new(),
             status_bar: StatusBar::new(),
             current_modal: None,
             search_state: SearchState::new(),
+            right_panel: RightPanel::Preview,
             show_preview: true,
             running: true,
         };
@@ -180,7 +190,10 @@ impl App {
         self.note_editor.draw(f, chunks[1], theme_ref, self.mode);
 
         if self.show_preview {
-            self.preview_pane.draw(f, chunks[2], theme_ref);
+            match self.right_panel {
+                RightPanel::Preview => self.preview_pane.draw(f, chunks[2], theme_ref),
+                RightPanel::Metadata => self.metadata_pane.draw(f, chunks[2], theme_ref),
+            }
         }
 
         // Status bar
@@ -301,6 +314,7 @@ impl App {
 
             // Views
             KeyCode::Char('p') => self.toggle_preview(),
+            KeyCode::Char('m') => self.toggle_metadata(),
 
             // Quit
             KeyCode::Char('q') if key.modifiers == KeyModifiers::NONE => {
@@ -658,12 +672,23 @@ impl App {
         self.show_preview = !self.show_preview;
     }
 
+    fn toggle_metadata(&mut self) {
+        if self.show_preview {
+            // Toggle between preview and metadata
+            self.right_panel = match self.right_panel {
+                RightPanel::Preview => RightPanel::Metadata,
+                RightPanel::Metadata => RightPanel::Preview,
+            };
+        }
+    }
+
     fn load_note(&mut self) {
         if let Some(selected) = &self.selected_note {
             if let Ok(id) = crate::note::NoteId::parse(selected) {
                 if let Ok(Some(note)) = self.db.get_note(&id) {
                     self.note_editor.set_content(&note.content);
                     self.preview_pane.set_content(&note.content);
+                    self.metadata_pane.set_note(note);
                 }
             }
         }
