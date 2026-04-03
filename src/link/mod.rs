@@ -1,6 +1,7 @@
 use std::fmt;
 use thiserror::Error;
 
+pub mod fuzzy;
 pub mod parser;
 pub mod validator;
 
@@ -156,6 +157,7 @@ pub enum LinkError {
 pub type Result<T> = std::result::Result<T, LinkError>;
 
 // Re-export parser module's public items
+pub use fuzzy::fuzzy_match;
 pub use parser::parse_link;
 pub use validator::{LinkValidator, ValidatedLink};
 

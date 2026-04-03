@@ -1,4 +1,5 @@
 use super::editor_state::EditorState;
+use super::link_autocomplete::LinkAutocomplete;
 use crate::db::Database;
 use crate::link::LinkValidator;
 use crate::ui::app::Mode;
@@ -14,6 +15,8 @@ use ratatui::{
 pub struct NoteEditor {
     state: EditorState,
     preferred_col: Option<usize>,
+    autocomplete: LinkAutocomplete,
+    autocomplete_pattern: String,
 }
 
 impl NoteEditor {
@@ -21,6 +24,8 @@ impl NoteEditor {
         Self {
             state: EditorState::new(),
             preferred_col: None,
+            autocomplete: LinkAutocomplete::new(),
+            autocomplete_pattern: String::new(),
         }
     }
 
@@ -95,6 +100,78 @@ impl NoteEditor {
             .nth(col)
             .map(|(idx, _)| idx)
             .unwrap_or(line_text.len())
+    }
+
+    /// Check if we're at a link start and extract the pattern
+    /// Returns Some(pattern) if we're typing [[, else None
+    fn extract_link_pattern_at_cursor(&self) -> Option<String> {
+        let content = self.state.get_content();
+        let cursor_pos = self.state.cursor;
+
+        // Look backwards from cursor to find [[
+        if cursor_pos >= 2 {
+            let before = &content[cursor_pos.saturating_sub(100)..cursor_pos];
+
+            // Check if we're after [[
+            if let Some(link_start) = before.rfind("[[") {
+                // Extract everything after [[
+                let pattern_start = cursor_pos.saturating_sub(100) + link_start + 2;
+                let pattern = content[pattern_start..cursor_pos].to_string();
+
+                // Check if pattern doesn't contain ]] (link not closed yet)
+                if !pattern.contains("]]") {
+                    return Some(pattern);
+                }
+            }
+        }
+        None
+    }
+
+    /// Trigger autocomplete search
+    pub fn update_autocomplete(&mut self, db: &Database) {
+        if let Some(pattern) = self.extract_link_pattern_at_cursor() {
+            self.autocomplete_pattern = pattern.clone();
+            self.autocomplete.search(&pattern, db, 10);
+        } else {
+            self.autocomplete.clear();
+            self.autocomplete_pattern.clear();
+        }
+    }
+
+    /// Get currently selected autocomplete suggestion
+    pub fn get_selected_suggestion(&self) -> Option<(String, String)> {
+        self.autocomplete
+            .selected()
+            .map(|s| (s.note_title.clone(), s.note_id.clone()))
+    }
+
+    /// Insert selected autocomplete suggestion
+    pub fn insert_suggestion(&mut self, note_id: &str) {
+        // Find the [[ and replace pattern with note_id
+        let content = self.state.get_content();
+        let cursor_pos = self.state.cursor;
+
+        if let Some(pattern) = self.extract_link_pattern_at_cursor() {
+            // Calculate the position of [[
+            let before = &content[cursor_pos.saturating_sub(100)..cursor_pos];
+            if let Some(link_start_rel) = before.rfind("[[") {
+                let link_start = cursor_pos.saturating_sub(100) + link_start_rel;
+                let replacement = format!("[[{}]]", note_id);
+
+                // Delete from [[ to cursor
+                for _ in 0..pattern.len() {
+                    self.state.delete_prev_char();
+                }
+
+                // Insert the replacement
+                for ch in replacement.chars() {
+                    self.state.insert_char(ch);
+                }
+
+                // Clear autocomplete
+                self.autocomplete.clear();
+            }
+        }
     }
 
     pub fn draw(
@@ -222,6 +299,17 @@ impl NoteEditor {
             if cursor_y < area.y + area.height - 1 {
                 f.set_cursor(cursor_x, cursor_y);
             }
+        }
+
+        // Render autocomplete menu if visible
+        if self.autocomplete.is_visible() && area.height > 5 {
+            let autocomplete_area = Rect {
+                x: area.x + 1,
+                y: area.y + 3,
+                width: area.width.saturating_sub(2),
+                height: area.height.saturating_sub(5),
+            };
+            self.autocomplete.draw(f, autocomplete_area, theme);
         }
     }
 

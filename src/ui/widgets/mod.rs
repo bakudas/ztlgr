@@ -1,6 +1,7 @@
 pub mod command;
 pub mod editor_history;
 pub mod editor_state;
+pub mod link_autocomplete;
 pub mod metadata_pane;
 pub mod modals;
 pub mod note_editor;
@@ -10,6 +11,7 @@ pub mod search;
 pub mod status_bar;
 
 pub use command::{Command, CommandContext, CommandExecutor, CommandParser, CommandResult};
+pub use link_autocomplete::{LinkAutocomplete, LinkSuggestion};
 pub use metadata_pane::MetadataPane;
 pub use modals::{
     ConfirmationAction, ConfirmationModal, CreateNoteAction, CreateNoteModal, NoteTypeAction,
