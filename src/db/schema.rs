@@ -254,7 +254,32 @@ impl Database {
             .collect::<std::result::Result<Vec<_>, _>>()
             .map_err(ZtlgrError::Database)?;
 
-        Ok(notes)
+        // Sort by type first, then by updated_at DESC
+        let mut sorted_notes = notes;
+        sorted_notes.sort_by(|a, b| {
+            // Define order: Daily, Fleeting, Permanent, Literature, Reference, Index
+            fn type_order(note_type: &crate::note::NoteType) -> u8 {
+                match note_type {
+                    crate::note::NoteType::Daily => 0,
+                    crate::note::NoteType::Fleeting => 1,
+                    crate::note::NoteType::Permanent => 2,
+                    crate::note::NoteType::Literature { .. } => 3,
+                    crate::note::NoteType::Reference { .. } => 4,
+                    crate::note::NoteType::Index => 5,
+                }
+            }
+
+            // First sort by type
+            let type_cmp = type_order(&a.note_type).cmp(&type_order(&b.note_type));
+
+            // If same type, sort by updated_at DESC (most recent first)
+            match type_cmp {
+                std::cmp::Ordering::Equal => b.updated_at.cmp(&a.updated_at),
+                _ => type_cmp,
+            }
+        });
+
+        Ok(sorted_notes)
     }
 
     pub fn search_notes(&self, query: &str, limit: usize) -> ZResult<Vec<Note>> {
