@@ -78,7 +78,7 @@ impl StatusBar {
             Line::from(vec![
                 Span::styled(format!(" [{:>7}] ", mode_str), mode_style),
                 Span::styled(
-                    "Press 'i' to edit | '/' to search | ':' for command | 'q' to quit",
+                    "Press 'i' to edit | '/' to search | ':' for commands | ':q' to quit",
                     help_style,
                 ),
             ])

@@ -423,14 +423,6 @@ impl App {
             KeyCode::Char('p') => self.toggle_preview(),
             KeyCode::Char('m') => self.toggle_metadata(),
 
-            // Quit
-            KeyCode::Char('q') if key.modifiers == KeyModifiers::NONE => {
-                if self.config.editor.auto_save_interval > 0 {
-                    self.save_current_note();
-                }
-                self.running = false;
-            }
-
             _ => {}
         }
     }
@@ -614,6 +606,13 @@ impl App {
                     Command::Export(format) => {
                         self.status_bar
                             .set_message(&format!("Export to {} not yet implemented", format));
+                    }
+                    Command::Quit => {
+                        // Save before quitting
+                        if self.config.editor.auto_save_interval > 0 {
+                            self.save_current_note();
+                        }
+                        self.running = false;
                     }
                     Command::Unknown(_) => {
                         // Error case handled below

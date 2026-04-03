@@ -9,6 +9,7 @@ pub enum Command {
     Tag(Vec<String>),
     Delete,
     Export(String),
+    Quit,
     Unknown(String),
 }
 
@@ -21,6 +22,7 @@ impl fmt::Display for Command {
             Command::Tag(tags) => write!(f, "tag {}", tags.join(" ")),
             Command::Delete => write!(f, "delete"),
             Command::Export(format) => write!(f, "export {}", format),
+            Command::Quit => write!(f, "quit"),
             Command::Unknown(cmd) => write!(f, "unknown: {}", cmd),
         }
     }
@@ -47,6 +49,7 @@ impl CommandParser {
 
         match cmd_name.to_lowercase().as_str() {
             "help" | "h" | "?" => Command::Help,
+            "quit" | "q" | "exit" | "x" => Command::Quit,
             "delete" | "del" | "rm" => Command::Delete,
             "rename" | "rn" => {
                 let title = args.trim();
@@ -108,6 +111,7 @@ impl CommandExecutor {
     pub fn execute(cmd: &Command, context: &CommandContext) -> CommandResult {
         match cmd {
             Command::Help => CommandExecutor::help(),
+            Command::Quit => CommandResult::Success("Goodbye!".to_string()),
             Command::Delete => CommandExecutor::delete(context),
             Command::Rename(title) => CommandExecutor::rename(context, title),
             Command::Move(folder) => CommandExecutor::move_note(context, folder),
@@ -120,6 +124,7 @@ impl CommandExecutor {
     fn help() -> CommandResult {
         let help_text = r#"Available commands:
 :help, :h, :?            - Show this help message
+:quit, :q, :exit, :x     - Quit the application
 :rename <title>          - Rename current note to <title>
 :move <folder>           - Move note to folder (daily, fleeting, permanent, literature, index, reference)
 :tag <tags>              - Add tags to current note

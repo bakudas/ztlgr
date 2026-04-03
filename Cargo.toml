@@ -5,7 +5,7 @@ edition = "2021"
 authors = ["ZettelGraph Team"]
 description = "Terminal-based note-taking app with Zettelkasten methodology"
 license = "MIT OR Apache-2.0"
-repository = "https://github.com/yourusername/ztlgr"
+repository = "https://github.com/bakudas/ztlgr"
 keywords = ["notes", "zettelkasten", "terminal", "tui"]
 categories = ["command-line-interface", "text-processing"]
 
