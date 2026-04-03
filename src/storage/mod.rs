@@ -1,12 +1,14 @@
 pub mod importer;
 pub mod markdown;
 pub mod org;
+pub mod organization;
 pub mod sync;
 pub mod watcher;
 
 pub use importer::FileImporter;
 pub use markdown::MarkdownStorage;
 pub use org::OrgStorage;
+pub use organization::{FolderStats, NoteOrganizer};
 pub use sync::FileSync;
 pub use watcher::FileWatcher;
 
