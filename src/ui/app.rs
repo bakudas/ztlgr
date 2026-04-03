@@ -19,6 +19,7 @@ use super::widgets::{
     NoteTypeSelector, NoteTypeAction,
     CreateNoteModal, CreateNoteAction,
     SearchState, SearchResult,
+    Command, CommandParser, CommandExecutor, CommandContext, CommandResult,
 };
 use crate::config::Config;
 use crate::db::Database;
@@ -378,34 +379,120 @@ impl App {
     }
 
     fn execute_command(&mut self) {
-        let cmd = self.command_buffer.trim();
+        let cmd_str = self.command_buffer.trim();
 
-        if cmd.starts_with("rename ") {
-            // Extract new title from "rename <new_title>"
-            let new_title = cmd.strip_prefix("rename ").unwrap_or("").trim();
-            if !new_title.is_empty() && !new_title.is_empty() {
-                if let Some(selected) = &self.selected_note {
-                    if let Some(note) = self.notes.iter_mut().find(|n| n.id.as_str() == selected) {
-                        note.title = new_title.to_string();
+        // Parse the command
+        let command = CommandParser::parse(cmd_str);
 
-                        // Save to database
-                        if self.db.update_note(&note).is_ok() {
-                            tracing::info!("Note renamed: {} -> {}", selected, new_title);
-                            self.status_bar
-                                .set_message(&format!("Renamed to: {}", new_title));
-                        } else {
-                            self.status_bar.set_message("Error renaming note");
-                        }
-                    }
-                } else {
-                    self.status_bar.set_message("No note selected");
-                }
+        // Create context for the executor
+        let context = if let Some(selected) = &self.selected_note.clone() {
+            if let Some(note) = self.notes.iter().find(|n| n.id.as_str() == selected) {
+                CommandContext::with_note(selected.clone(), note.title.clone())
             } else {
-                self.status_bar.set_message("Usage: rename <new_title>");
+                CommandContext::new()
             }
         } else {
-            self.status_bar
-                .set_message(&format!("Unknown command: {}", cmd));
+            CommandContext::new()
+        };
+
+        // Execute the command and get result
+        let result = CommandExecutor::execute(&command, &context);
+
+        match result {
+            CommandResult::Success(msg) => {
+                // Handle specific command side effects
+                match command {
+                    Command::Help => {
+                        self.status_bar.set_message(&msg);
+                    }
+                    Command::Rename(new_title) => {
+                        if let Some(selected) = &self.selected_note.clone() {
+                            if let Some(note) = self.notes.iter_mut().find(|n| n.id.as_str() == selected) {
+                                note.title = new_title;
+                                note.updated_at = chrono::Utc::now();
+
+                                // Save to database
+                                if self.db.update_note(&note).is_ok() {
+                                    tracing::info!("Note renamed: {} -> {}", selected, note.title);
+                                    self.status_bar.set_message(&msg);
+                                } else {
+                                    self.status_bar.set_message("Error renaming note");
+                                }
+                            }
+                        }
+                    }
+                    Command::Move(folder) => {
+                        if let Some(selected) = &self.selected_note.clone() {
+                            if let Some(note) = self.notes.iter_mut().find(|n| n.id.as_str() == selected) {
+                                // Update note type based on folder
+                                note.note_type = match folder.as_str() {
+                                    "daily" => crate::note::NoteType::Daily,
+                                    "fleeting" => crate::note::NoteType::Fleeting,
+                                    "permanent" => crate::note::NoteType::Permanent,
+                                    "literature" => crate::note::NoteType::Literature { source: String::new() },
+                                    "index" => crate::note::NoteType::Index,
+                                    "reference" => crate::note::NoteType::Reference { url: None },
+                                    _ => note.note_type.clone(),
+                                };
+                                note.updated_at = chrono::Utc::now();
+
+                                // Save to database
+                                if self.db.update_note(&note).is_ok() {
+                                    tracing::info!("Note moved to: {}", folder);
+                                    self.status_bar.set_message(&msg);
+                                } else {
+                                    self.status_bar.set_message("Error moving note");
+                                }
+                            }
+                        }
+                    }
+                    Command::Tag(tags) => {
+                        if let Some(selected) = &self.selected_note.clone() {
+                            if let Some(note) = self.notes.iter_mut().find(|n| n.id.as_str() == selected) {
+                                // Add tags to note metadata
+                                if note.metadata.tags.is_none() {
+                                    note.metadata.tags = Some(Vec::new());
+                                }
+                                if let Some(ref mut note_tags) = note.metadata.tags {
+                                    for tag in tags {
+                                        if !note_tags.contains(&tag) {
+                                            note_tags.push(tag);
+                                        }
+                                    }
+                                }
+                                note.updated_at = chrono::Utc::now();
+
+                                // Save to database
+                                if self.db.update_note(&note).is_ok() {
+                                    tracing::info!("Tags added to note: {}", selected);
+                                    self.status_bar.set_message(&msg);
+                                } else {
+                                    self.status_bar.set_message("Error adding tags");
+                                }
+                            }
+                        }
+                    }
+                    Command::Delete => {
+                        // Show confirmation modal for delete
+                        self.current_modal = Some(CurrentModal::Confirmation(
+                            ConfirmationModal::new(
+                                "Delete Note",
+                                "current note",
+                            ),
+                        ));
+                        self.status_bar.set_message("Delete confirmation shown");
+                    }
+                    Command::Export(format) => {
+                        self.status_bar.set_message(&format!("Export to {} not yet implemented", format));
+                    }
+                    Command::Unknown(_) => {
+                        // Error case handled below
+                    }
+                }
+            }
+            CommandResult::Error(msg) => {
+                self.status_bar.set_message(&msg);
+            }
         }
     }
 

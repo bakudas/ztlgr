@@ -1,3 +1,4 @@
+pub mod command;
 pub mod editor_history;
 pub mod editor_state;
 pub mod modals;
@@ -7,14 +8,13 @@ pub mod preview_pane;
 pub mod search;
 pub mod status_bar;
 
-pub use editor_history::{EditAction, EditHistory};
-pub use editor_state::{EditorState, Selection, TextRope};
+pub use command::{Command, CommandContext, CommandExecutor, CommandParser, CommandResult};
 pub use modals::{
-    ConfirmationAction, ConfirmationModal, CreateNoteAction, CreateNoteModal, NoteType,
-    NoteTypeAction, NoteTypeSelector,
+    ConfirmationAction, ConfirmationModal, CreateNoteAction, CreateNoteModal, NoteTypeAction,
+    NoteTypeSelector,
 };
 pub use note_editor::NoteEditor;
 pub use note_list::NoteList;
 pub use preview_pane::PreviewPane;
-pub use search::{SearchInput, SearchResult, SearchResults, SearchState};
+pub use search::{SearchResult, SearchState};
 pub use status_bar::StatusBar;

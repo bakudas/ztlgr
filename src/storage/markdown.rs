@@ -45,7 +45,7 @@ impl MarkdownStorage {
 
         if let Some(obj) = yaml.as_mapping() {
             // Standard fields
-            if let Some(id) = obj.get(&serde_yaml::Value::String("id".to_string())) {
+            if let Some(_id) = obj.get(&serde_yaml::Value::String("id".to_string())) {
                 // ID is stored separately, not in metadata
             }
 
