@@ -323,7 +323,10 @@ impl App {
             KeyCode::Char('G') => self.goto_bottom(),
 
             // Actions
-            KeyCode::Char('i') => self.mode = Mode::Insert,
+            KeyCode::Char('i') => {
+                self.mode = Mode::Insert;
+                self.focused_panel = Panel::Editor;
+            }
             KeyCode::Char('n') => self.new_note(),
             KeyCode::Char('d') => self.delete_note(),
             KeyCode::Char('r') if key.modifiers == KeyModifiers::CONTROL => self.rename_note(),
@@ -591,6 +594,9 @@ impl App {
     }
 
     fn next_note(&mut self) {
+        // Save current note before switching
+        self.save_current_note();
+        
         if let Some(selected) = &self.selected_note {
             if let Some(pos) = self.notes.iter().position(|n| n.id.as_str() == selected) {
                 if pos < self.notes.len() - 1 {
@@ -605,6 +611,9 @@ impl App {
     }
 
     fn prev_note(&mut self) {
+        // Save current note before switching
+        self.save_current_note();
+        
         if let Some(selected) = &self.selected_note {
             if let Some(pos) = self.notes.iter().position(|n| n.id.as_str() == selected) {
                 if pos > 0 {
@@ -681,12 +690,16 @@ impl App {
     }
 
     fn create_note_with_details(&mut self, title: String, _tags: String) {
+        // Save current note before creating new one
+        self.save_current_note();
+        
         let note = Note::new(title, String::new());
 
         if let Ok(id) = self.db.create_note(&note) {
             self.notes.insert(0, note);
             self.selected_note = Some(id.as_str().to_string());
             self.load_note();
+            self.note_editor.clear(); // Clear editor for new note
             self.status_bar
                 .set_message(&format!("Note created (Insert mode)"));
         } else {
