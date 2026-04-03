@@ -1,5 +1,11 @@
 use crate::ui::app::Mode;
-use ratatui::{layout::Rect, style::Style, text::Text, widgets::Paragraph, Frame};
+use ratatui::{
+    layout::Rect,
+    style::{Modifier, Style},
+    text::{Line, Span},
+    widgets::Paragraph,
+    Frame,
+};
 
 pub struct StatusBar {
     command_buffer: String,
@@ -31,27 +37,54 @@ impl StatusBar {
     }
 
     pub fn draw(&self, f: &mut Frame, area: Rect, theme: &dyn crate::config::Theme, mode: Mode) {
-        let mode_str = match mode {
-            Mode::Normal => "NORMAL",
-            Mode::Insert => "INSERT",
-            Mode::Search => "SEARCH",
-            Mode::Command => "COMMAND",
-            Mode::Graph => "GRAPH",
+        let (mode_str, mode_style) = match mode {
+            Mode::Normal => ("NORMAL", Style::default().fg(theme.fg())),
+            Mode::Insert => (
+                "INSERT",
+                Style::default()
+                    .fg(theme.success())
+                    .add_modifier(Modifier::BOLD),
+            ),
+            Mode::Search => (
+                "SEARCH",
+                Style::default()
+                    .fg(theme.accent())
+                    .add_modifier(Modifier::BOLD),
+            ),
+            Mode::Command => (
+                "COMMAND",
+                Style::default()
+                    .fg(theme.info())
+                    .add_modifier(Modifier::BOLD),
+            ),
+            Mode::Graph => (
+                "GRAPH",
+                Style::default()
+                    .fg(theme.warning())
+                    .add_modifier(Modifier::BOLD),
+            ),
         };
 
         let help_style = Style::default().fg(theme.fg_dim()).bg(theme.bg());
 
         let status_text = if !self.message.is_empty() {
-            self.message.clone()
+            // Message takes priority
+            Line::from(vec![
+                Span::styled(format!(" [{:>7}] ", mode_str), mode_style),
+                Span::styled(&self.message, help_style),
+            ])
         } else {
-            format!(
-                " {} | Press 'i' to edit | '/' to search | ':' for command | 'q' to quit",
-                mode_str
-            )
+            // Default help text with mode indicator
+            Line::from(vec![
+                Span::styled(format!(" [{:>7}] ", mode_str), mode_style),
+                Span::styled(
+                    "Press 'i' to edit | '/' to search | ':' for command | 'q' to quit",
+                    help_style,
+                ),
+            ])
         };
 
-        let text = Text::from(status_text);
-        let paragraph = Paragraph::new(text).style(help_style);
+        let paragraph = Paragraph::new(status_text).style(Style::default().bg(theme.bg()));
 
         f.render_widget(paragraph, area);
     }
