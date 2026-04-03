@@ -407,8 +407,26 @@ impl App {
     fn handle_normal_mode(&mut self, key: KeyEvent) {
         match key.code {
             // Navigation
-            KeyCode::Char('j') => self.next_note(),
-            KeyCode::Char('k') => self.prev_note(),
+            KeyCode::Char('j') => {
+                if self.focused_panel == Panel::Right && self.show_preview {
+                    match self.right_panel {
+                        RightPanel::Preview => self.preview_pane.scroll_down(),
+                        RightPanel::Metadata => self.next_note(),
+                    }
+                } else {
+                    self.next_note()
+                }
+            }
+            KeyCode::Char('k') => {
+                if self.focused_panel == Panel::Right && self.show_preview {
+                    match self.right_panel {
+                        RightPanel::Preview => self.preview_pane.scroll_up(),
+                        RightPanel::Metadata => self.prev_note(),
+                    }
+                } else {
+                    self.prev_note()
+                }
+            }
             KeyCode::Char('h') => self.prev_panel(),
             KeyCode::Char('l') => self.next_panel(),
             KeyCode::Char('g') => self.goto_top(),
