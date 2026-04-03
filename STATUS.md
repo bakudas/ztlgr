@@ -39,7 +39,7 @@ Em uma semana, implementamos:
 ### 🎯 O QUE FOI FEITO (PRIORIDADE 1)
 
 | Feature | Status | Impacto |
-|---------|--------|--------|
+|---------|--------|---------|
 | **Editor Funcional** | ✅ Completo | Rope + undo/redo + copy/paste |
 | **Search Mode** | ✅ Completo | FTS5 integration + results nav |
 | **Command Mode** | ✅ Completo | Parser + executor (:rename, :move, :tag, :delete) |
@@ -54,21 +54,18 @@ Em uma semana, implementamos:
 | **Soft Delete** | ✅ Completo | 7-day trash retention + recovery |
 | **Markdown Preview** | ✅ Completo | Rendered preview pane |
 | **UI/UX Polish** | ✅ Completo | Focus indicators, mode colors, theme consistency |
+| **Distribution Setup** | ✅ Completo | INSTALL.md, GitHub Actions, release workflow |
 
 **Total de Testes:** 248 passing ✅
 
-### 🎯 PRÓXIMAS PRIORIDADES (PRIORIDADE 2)
-
-| Feature | Status | Estimado |
-|---------|--------|----------|
-| **Link Validation & Highlighting** | ✅ Completo | 2-3h |
-| **Link Autocomplete** | ✅ Completo | 2-3h |
-| **Link Following** | ✅ Completo | 1-2h |
-| **Backlinks Display** | ✅ Completo | 2-3h |
-| **Graph Visualization** | 🔴 Pending | 4-6h |
-
 ### 📝 Commits Recentes (Últimas 24h)
 
+```
+ab38236 ✅ docs: prepare for distribution with INSTALL.md and code cleanup
+0541703 ✅ feat: change quit command from 'q' to ':q' (Vim-style)
+f5b10f5 ✅ fix: note list navigation and ordering completely broken
+e4d4ef1 ✅ fix: CRITICAL - note creation flow completely broken (IDs mismatch)
+5a7460d ✅ fix: multiple critical bug fixes and UX improvements
 ```
 2398840 ✅ feat: add backlinks display widget
 da58235 ✅ feat: add link following infrastructure (Ctrl+] and Ctrl+[)
