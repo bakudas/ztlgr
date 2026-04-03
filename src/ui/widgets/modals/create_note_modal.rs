@@ -7,7 +7,7 @@ use ratatui::Frame;
 ///
 /// ASCII mockup:
 /// ```
-/// ┌─ Create New Note ────────────────────┐
+/// ┌─ Create New [NoteType] Note ──────────┐
 /// │                                       │
 /// │  Title: [________________]            │
 /// │  Tags:  [________________]            │
@@ -37,10 +37,10 @@ impl CreateNoteModal {
     pub fn new() -> Self {
         let base = GenericModal::new(
             "Create New Note",
-            "Enter note details:\n\nTitle: [                    ]\nTags:  [                    ]",
+            "Enter note details:\n\nTitle: [                    ]\nTags:  [                    ]\n\nTab to switch fields · Enter to create · Esc to cancel",
         )
         .with_buttons(vec!["Create".to_string(), "Cancel".to_string()])
-        .with_dimensions(55, 45);
+        .with_dimensions(60, 45);
 
         Self {
             base,
@@ -50,6 +50,12 @@ impl CreateNoteModal {
             max_title_length: 100,
             max_tags_length: 100,
         }
+    }
+
+    /// Set the note type in the title
+    pub fn with_note_type(mut self, note_type: &str) -> Self {
+        self.base.title = format!("Create New {} Note", note_type);
+        self
     }
 
     /// Get the entered title

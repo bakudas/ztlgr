@@ -74,10 +74,10 @@ impl NoteTypeSelector {
 
         let base = GenericModal::new(
             "Select Note Type",
-            "Choose type for new note:\n\nDaily - Today's quick captures\nFleeting - To be processed\nPermanent - Evergreen ideas\nLiterature - From sources",
+            "Choose type for new note:\n\n[D] Daily      - Today's quick captures\n[F] Fleeting    - To be processed\n[P] Permanent   - Evergreen ideas\n[L] Literature  - From external sources\n\n↑↓ or D/F/P/L to select • Enter to confirm • Esc to cancel",
         )
-        .with_buttons(vec!["Select".to_string(), "Cancel".to_string()])
-        .with_dimensions(55, 45);
+        .with_buttons(vec!["Create".to_string(), "Cancel".to_string()])
+        .with_dimensions(65, 50);
 
         Self {
             base,
@@ -105,9 +105,9 @@ impl NoteTypeSelector {
         }
     }
 
-    /// Check if "Select" button is pressed
+    /// Check if "Create" button is pressed
     pub fn is_selected(&self) -> bool {
-        self.base.selected_button() == "Select"
+        self.base.selected_button() == "Create"
     }
 
     /// Handle key events
@@ -225,7 +225,7 @@ mod tests {
     #[test]
     fn test_is_selected() {
         let selector = NoteTypeSelector::new();
-        assert!(selector.is_selected()); // "Select" is first button
+        assert!(selector.is_selected()); // "Create" is first button
     }
 
     #[test]

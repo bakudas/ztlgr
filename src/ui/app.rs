@@ -18,6 +18,7 @@ use super::widgets::{
     ConfirmationModal, CreateNoteAction, CreateNoteModal, MetadataPane, NoteEditor, NoteList,
     NoteTypeAction, NoteTypeSelector, PreviewPane, SearchResult, SearchState, StatusBar,
 };
+use super::widgets::modals::note_type_selector::NoteType as SelectorNoteType;
 use crate::config::Config;
 use crate::db::Database;
 use crate::error::Result;
@@ -56,6 +57,7 @@ pub struct App {
 
     // Modal state
     current_modal: Option<CurrentModal>,
+    pending_note_type: Option<SelectorNoteType>, // Store selected note type during creation
 
     // Search state
     search_state: SearchState,
@@ -103,6 +105,7 @@ impl App {
             metadata_pane: MetadataPane::new(),
             status_bar: StatusBar::new(),
             current_modal: None,
+            pending_note_type: None,
             search_state: SearchState::new(),
             right_panel: RightPanel::Preview,
             focused_panel: Panel::NoteList,
@@ -277,10 +280,16 @@ impl App {
                     if let Some(action) = modal.handle_key(key) {
                         match action {
                             NoteTypeAction::Selected(note_type) => {
-                                self.current_modal =
-                                    Some(CurrentModal::CreateNote(CreateNoteModal::new()));
+                                // Store the selected note type for later use
+                                self.pending_note_type = Some(note_type);
+                                
+                                // Create modal with note type in title
+                                let create_modal = CreateNoteModal::new()
+                                    .with_note_type(note_type.label());
+                                
+                                self.current_modal = Some(CurrentModal::CreateNote(create_modal));
                                 self.status_bar.set_message(&format!(
-                                    "Create new {} note (Esc to cancel)",
+                                    "Creating {} note - Enter title",
                                     note_type.label()
                                 ));
                             }
@@ -294,11 +303,25 @@ impl App {
                     if let Some(action) = modal.handle_key(key) {
                         match action {
                             CreateNoteAction::Created { title, tags } => {
-                                self.create_note_with_details(title, tags);
+                                // Use the stored note type or default to Permanent
+                                let note_type = self.pending_note_type
+                                    .map(|t| match t {
+                                        SelectorNoteType::Daily => crate::note::NoteType::Daily,
+                                        SelectorNoteType::Fleeting => crate::note::NoteType::Fleeting,
+                                        SelectorNoteType::Permanent => crate::note::NoteType::Permanent,
+                                        SelectorNoteType::Literature => crate::note::NoteType::Literature {
+                                            source: String::new(),
+                                        },
+                                    })
+                                    .unwrap_or(crate::note::NoteType::Permanent);
+                                
+                                self.create_note_with_details(title, tags, note_type);
+                                self.pending_note_type = None; // Clear after use
                                 self.current_modal = None;
                                 self.mode = Mode::Insert;
                             }
                             CreateNoteAction::Cancelled => {
+                                self.pending_note_type = None; // Clear on cancel
                                 self.current_modal = None;
                             }
                             CreateNoteAction::Error(err) => {
@@ -689,11 +712,13 @@ impl App {
             .set_message("Select note type (D/F/P/L for quick select)");
     }
 
-    fn create_note_with_details(&mut self, title: String, _tags: String) {
+    fn create_note_with_details(&mut self, title: String, _tags: String, note_type: crate::note::NoteType) {
         // Save current note before creating new one
         self.save_current_note();
         
-        let note = Note::new(title, String::new());
+        // Create note with specified type
+        let mut note = Note::new(title, String::new());
+        note.note_type = note_type;
 
         if let Ok(id) = self.db.create_note(&note) {
             self.notes.insert(0, note);
@@ -701,7 +726,7 @@ impl App {
             self.load_note();
             self.note_editor.clear(); // Clear editor for new note
             self.status_bar
-                .set_message(&format!("Note created (Insert mode)"));
+                .set_message(&format!("Note created successfully! (Insert mode)"));
         } else {
             self.status_bar.set_message("Error creating note");
         }
