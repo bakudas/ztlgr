@@ -190,22 +190,16 @@ impl CommandExecutor {
 #[derive(Debug, Clone)]
 pub struct CommandContext {
     pub note_id: Option<String>,
-    #[allow(dead_code)]
-    pub note_title: Option<String>,
 }
 
 impl CommandContext {
     pub fn new() -> Self {
-        Self {
-            note_id: None,
-            note_title: None,
-        }
+        Self { note_id: None }
     }
 
-    pub fn with_note(note_id: String, note_title: String) -> Self {
+    pub fn with_note(note_id: String) -> Self {
         Self {
             note_id: Some(note_id),
-            note_title: Some(note_title),
         }
     }
 }
@@ -633,7 +627,7 @@ mod tests {
 
     #[test]
     fn test_execute_rename_success() {
-        let ctx = CommandContext::with_note("note-1".to_string(), "Old Title".to_string());
+        let ctx = CommandContext::with_note("note-1".to_string());
         let result = CommandExecutor::execute(&Command::Rename("New Title".to_string()), &ctx);
         assert_eq!(
             result,
@@ -650,7 +644,7 @@ mod tests {
 
     #[test]
     fn test_execute_rename_empty_title() {
-        let ctx = CommandContext::with_note("note-1".to_string(), "Old Title".to_string());
+        let ctx = CommandContext::with_note("note-1".to_string());
         let result = CommandExecutor::execute(&Command::Rename("   ".to_string()), &ctx);
         assert_eq!(
             result,
@@ -664,7 +658,7 @@ mod tests {
 
     #[test]
     fn test_execute_move_success() {
-        let ctx = CommandContext::with_note("note-1".to_string(), "Title".to_string());
+        let ctx = CommandContext::with_note("note-1".to_string());
         let result = CommandExecutor::execute(&Command::Move("daily".to_string()), &ctx);
         assert_eq!(
             result,
@@ -682,7 +676,7 @@ mod tests {
             "index",
             "reference",
         ];
-        let ctx = CommandContext::with_note("note-1".to_string(), "Title".to_string());
+        let ctx = CommandContext::with_note("note-1".to_string());
 
         for folder in &folders {
             let result = CommandExecutor::execute(&Command::Move(folder.to_string()), &ctx);
@@ -692,7 +686,7 @@ mod tests {
 
     #[test]
     fn test_execute_move_invalid_folder() {
-        let ctx = CommandContext::with_note("note-1".to_string(), "Title".to_string());
+        let ctx = CommandContext::with_note("note-1".to_string());
         let result = CommandExecutor::execute(&Command::Move("invalid".to_string()), &ctx);
         assert!(matches!(result, CommandResult::Error(_)));
         match result {
@@ -714,7 +708,7 @@ mod tests {
 
     #[test]
     fn test_execute_tag_success() {
-        let ctx = CommandContext::with_note("note-1".to_string(), "Title".to_string());
+        let ctx = CommandContext::with_note("note-1".to_string());
         let tags = vec!["rust".to_string(), "programming".to_string()];
         let result = CommandExecutor::execute(&Command::Tag(tags.clone()), &ctx);
         assert!(matches!(result, CommandResult::Success(_)));
@@ -726,7 +720,7 @@ mod tests {
 
     #[test]
     fn test_execute_tag_single_tag() {
-        let ctx = CommandContext::with_note("note-1".to_string(), "Title".to_string());
+        let ctx = CommandContext::with_note("note-1".to_string());
         let tags = vec!["rust".to_string()];
         let result = CommandExecutor::execute(&Command::Tag(tags), &ctx);
         assert!(matches!(result, CommandResult::Success(_)));
@@ -742,7 +736,7 @@ mod tests {
 
     #[test]
     fn test_execute_tag_empty_tags() {
-        let ctx = CommandContext::with_note("note-1".to_string(), "Title".to_string());
+        let ctx = CommandContext::with_note("note-1".to_string());
         let tags: Vec<String> = vec![];
         let result = CommandExecutor::execute(&Command::Tag(tags), &ctx);
         assert_eq!(
@@ -757,7 +751,7 @@ mod tests {
 
     #[test]
     fn test_execute_delete_success() {
-        let ctx = CommandContext::with_note("note-1".to_string(), "Title".to_string());
+        let ctx = CommandContext::with_note("note-1".to_string());
         let result = CommandExecutor::execute(&Command::Delete, &ctx);
         assert!(matches!(result, CommandResult::Success(_)));
     }
@@ -775,7 +769,7 @@ mod tests {
 
     #[test]
     fn test_execute_export_success() {
-        let ctx = CommandContext::with_note("note-1".to_string(), "Title".to_string());
+        let ctx = CommandContext::with_note("note-1".to_string());
         let result = CommandExecutor::execute(&Command::Export("pdf".to_string()), &ctx);
         assert_eq!(
             result,
@@ -786,7 +780,7 @@ mod tests {
     #[test]
     fn test_execute_export_all_valid_formats() {
         let formats = ["pdf", "html", "markdown", "md", "txt", "docx"];
-        let ctx = CommandContext::with_note("note-1".to_string(), "Title".to_string());
+        let ctx = CommandContext::with_note("note-1".to_string());
 
         for format in &formats {
             let result = CommandExecutor::execute(&Command::Export(format.to_string()), &ctx);
@@ -796,7 +790,7 @@ mod tests {
 
     #[test]
     fn test_execute_export_invalid_format() {
-        let ctx = CommandContext::with_note("note-1".to_string(), "Title".to_string());
+        let ctx = CommandContext::with_note("note-1".to_string());
         let result = CommandExecutor::execute(&Command::Export("xyz".to_string()), &ctx);
         assert!(matches!(result, CommandResult::Error(_)));
         match result {
@@ -835,13 +829,11 @@ mod tests {
     fn test_command_context_new() {
         let ctx = CommandContext::new();
         assert_eq!(ctx.note_id, None);
-        assert_eq!(ctx.note_title, None);
     }
 
     #[test]
     fn test_command_context_with_note() {
-        let ctx = CommandContext::with_note("note-1".to_string(), "Title".to_string());
+        let ctx = CommandContext::with_note("note-1".to_string());
         assert_eq!(ctx.note_id, Some("note-1".to_string()));
-        assert_eq!(ctx.note_title, Some("Title".to_string()));
     }
 }

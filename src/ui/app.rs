@@ -541,8 +541,8 @@ impl App {
 
         // Create context for the executor
         let context = if let Some(selected) = &self.selected_note.clone() {
-            if let Some(note) = self.notes.iter().find(|n| n.id.as_str() == selected) {
-                CommandContext::with_note(selected.clone(), note.title.clone())
+            if self.notes.iter().any(|n| n.id.as_str() == selected) {
+                CommandContext::with_note(selected.clone())
             } else {
                 CommandContext::new()
             }
