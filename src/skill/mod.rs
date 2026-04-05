@@ -1,3 +1,3 @@
 pub mod placeholder;
 
-pub use placeholder::{SqliteSkill, MarkdownSkill, TemplateSkill};
+pub use placeholder::{MarkdownSkill, SqliteSkill, TemplateSkill};

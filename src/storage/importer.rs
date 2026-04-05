@@ -146,7 +146,7 @@ impl ImportResult {
         ];
 
         for dir in dirs {
-            std::fs::create_dir_all(vault_path.join(dir)).map_err(|e| ZtlgrError::Io(e))?;
+            std::fs::create_dir_all(vault_path.join(dir)).map_err(ZtlgrError::Io)?;
         }
 
         Ok(())

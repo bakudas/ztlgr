@@ -2,6 +2,7 @@
 #![allow(dead_code)]
 
 use super::editor_history::{EditAction, EditHistory};
+use std::fmt;
 use std::ops::Range;
 
 /// Estrutura tipo "Rope" para gerenciar texto grande eficientemente
@@ -10,6 +11,12 @@ use std::ops::Range;
 pub struct TextRope {
     /// Linhas de texto
     lines: Vec<String>,
+}
+
+impl fmt::Display for TextRope {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "{}", self.lines.join("\n"))
+    }
 }
 
 impl TextRope {
@@ -28,10 +35,6 @@ impl TextRope {
         };
 
         Self { lines }
-    }
-
-    pub fn to_string(&self) -> String {
-        self.lines.join("\n")
     }
 
     pub fn len(&self) -> usize {
@@ -70,7 +73,6 @@ impl TextRope {
         let (end_line, end_col) = self.byte_to_line_col(end);
 
         if start_line == end_line {
-            // Deletar na mesma linha
             if start_line < self.lines.len() {
                 let max_col = self.lines[start_line].len();
                 if start_col < max_col && end_col <= max_col {
@@ -78,39 +80,33 @@ impl TextRope {
                 }
             }
         } else if start_line < self.lines.len() && end_line < self.lines.len() {
-            // Deletar múltiplas linhas
             let mut merged = String::new();
 
-            // Pega parte inicial da linha start (antes do range)
             if start_col <= self.lines[start_line].len() {
                 let start_part = self.lines[start_line][..start_col].to_string();
                 merged.push_str(&start_part);
             }
 
-            // Adiciona parte final da linha end (depois do range)
             if end_col <= self.lines[end_line].len() {
                 let end_part = self.lines[end_line][end_col..].to_string();
                 merged.push_str(&end_part);
             }
 
-            // Remove linhas intermediárias (da start_line até end_line)
             for _ in start_line..=end_line {
                 if start_line < self.lines.len() {
                     self.lines.remove(start_line);
                 }
             }
 
-            // Insere linha merged
             if start_line <= self.lines.len() {
                 self.lines.insert(start_line, merged);
             }
         }
     }
 
-    /// Converte byte offset para (line, col)
     fn byte_to_line_col(&self, mut byte_pos: usize) -> (usize, usize) {
         for (line_idx, line) in self.lines.iter().enumerate() {
-            let line_len = line.len() + 1; // +1 para \n
+            let line_len = line.len() + 1;
             if byte_pos < line_len {
                 return (line_idx, byte_pos);
             }
@@ -119,35 +115,30 @@ impl TextRope {
         (self.lines.len().saturating_sub(1), 0)
     }
 
-    /// Converte (line, col) para byte offset
     pub fn line_col_to_byte(&self, line: usize, col: usize) -> usize {
         let mut offset = 0;
         for (idx, l) in self.lines.iter().enumerate() {
             if idx == line {
                 return offset + col;
             }
-            offset += l.len() + 1; // +1 para \n
+            offset += l.len() + 1;
         }
         offset
     }
 
-    /// Obtém linha específica
     pub fn get_line(&self, idx: usize) -> Option<&str> {
         self.lines.get(idx).map(|s| s.as_str())
     }
 
-    /// Número de linhas
     pub fn line_count(&self) -> usize {
         self.lines.len()
     }
 
-    /// Itera sobre linhas
     pub fn lines(&self) -> impl Iterator<Item = &str> {
         self.lines.iter().map(|s| s.as_str())
     }
 }
 
-/// Representa seleção de texto (start, end em byte offset)
 #[derive(Clone, Copy, Debug, Default, PartialEq)]
 pub struct Selection {
     pub start: usize,
@@ -177,13 +168,12 @@ impl Selection {
     }
 }
 
-/// Estado completo do editor (rope + seleção + histórico)
 pub struct EditorState {
     pub text: TextRope,
-    pub cursor: usize, // posição do cursor em byte offset
+    pub cursor: usize,
     pub selection: Option<Selection>,
     pub history: EditHistory,
-    pub clipboard: String, // clipboard local
+    pub clipboard: String,
 }
 
 impl EditorState {
@@ -209,94 +199,70 @@ impl EditorState {
         }
     }
 
-    /// Insere caractere (com histórico)
     pub fn insert_char(&mut self, ch: char) {
         let ch_str = ch.to_string();
         self.text.insert_str(self.cursor, &ch_str);
-
         self.history.push(EditAction::Insert {
             pos: self.cursor,
             text: ch_str,
         });
-
         self.cursor += ch.len_utf8();
         self.selection = None;
     }
 
-    /// Insere string (com histórico)
     pub fn insert_str(&mut self, text: &str) {
         self.text.insert_str(self.cursor, text);
-
         self.history.push(EditAction::Insert {
             pos: self.cursor,
             text: text.to_string(),
         });
-
         self.cursor += text.len();
         self.selection = None;
     }
 
-    /// Deleta caractere anterior (backspace)
     pub fn delete_prev_char(&mut self) {
-        // If there's a selection, delete the selection first
         if let Some(sel) = self.selection {
             if sel.start < sel.end {
                 self.delete_selection();
                 return;
             }
         }
-
         if self.cursor > 0 {
-            // Encontra limite de caractere UTF-8
             let start = self.prev_char_boundary(self.cursor);
-
-            // Safely get the deleted text using character indices
             let content = self.text.to_string();
             let deleted = content.get(start..self.cursor).unwrap_or("").to_string();
-
             self.text.delete_range(start..self.cursor);
-
             self.history.push(EditAction::Delete {
                 pos: start,
                 text: deleted,
                 len: self.cursor - start,
             });
-
             self.cursor = start;
             self.selection = None;
         }
     }
 
-    /// Deleta caractere seguinte (delete key)
     pub fn delete_next_char(&mut self) {
-        // If there's a selection, delete the selection first
         if let Some(sel) = self.selection {
             if sel.start < sel.end {
                 self.delete_selection();
                 return;
             }
         }
-
         if self.cursor < self.text.len() {
             let end = self.next_char_boundary(self.cursor);
-
-            // Safely get the deleted text using character indices
             let content = self.text.to_string();
             let deleted = content.get(self.cursor..end).unwrap_or("").to_string();
-
             self.text.delete_range(self.cursor..end);
-
             self.history.push(EditAction::Delete {
                 pos: self.cursor,
                 text: deleted,
                 len: end - self.cursor,
             });
-
             self.selection = None;
         }
     }
 
-    /// Deleta seleção
     pub fn delete_selection(&mut self) {
         if let Some(sel) = self.selection {
             let content = self.text.to_string();
@@ -305,19 +271,16 @@ impl EditorState {
                 .unwrap_or("")
                 .to_string();
             self.text.delete_range(sel.start..sel.end);
-
             self.history.push(EditAction::Delete {
                 pos: sel.start,
                 text,
                 len: sel.len(),
             });
-
             self.cursor = sel.start;
             self.selection = None;
         }
     }
 
-    /// Copia seleção para clipboard
     pub fn copy_selection(&mut self) {
         if let Some(sel) = self.selection {
             if sel.start < sel.end {
@@ -330,7 +293,6 @@ impl EditorState {
         }
     }
 
-    /// Cola clipboard no cursor
     pub fn paste(&mut self) {
         let clipboard_copy = self.clipboard.clone();
         if !clipboard_copy.is_empty() {
@@ -338,7 +300,6 @@ impl EditorState {
         }
     }
 
-    /// Corta seleção para clipboard
     pub fn cut_selection(&mut self) {
         if let Some(_sel) = self.selection {
             self.copy_selection();
@@ -346,7 +307,6 @@ impl EditorState {
         }
     }
 
-    /// Expande seleção
     pub fn extend_selection(&mut self, new_cursor: usize) {
         if let Some(mut sel) = self.selection {
             sel.end = new_cursor;
@@ -357,23 +317,18 @@ impl EditorState {
         self.cursor = new_cursor;
     }
 
-    /// Desfaz última ação
     pub fn undo(&mut self) {
         if let Some(action) = self.history.undo() {
-            // Aplicar ação inversa
             self.apply_action(&action.inverse());
         }
     }
 
-    /// Refaz ação desfeita
     pub fn redo(&mut self) {
         if let Some(action) = self.history.redo() {
-            // Aplicar ação original (redo)
             self.apply_action(&action);
         }
     }
 
-    /// Aplica ação ao estado (usado por undo/redo)
     fn apply_action(&mut self, action: &EditAction) {
         match action {
             EditAction::Insert { pos, text } => {
@@ -392,19 +347,16 @@ impl EditorState {
         self.selection = None;
     }
 
-    /// Move cursor à esquerda
     pub fn cursor_left(&mut self) {
         self.cursor = self.prev_char_boundary(self.cursor);
         self.selection = None;
     }
 
-    /// Move cursor à direita
     pub fn cursor_right(&mut self) {
         self.cursor = self.next_char_boundary(self.cursor);
         self.selection = None;
     }
 
-    /// Move cursor ao início da linha
     pub fn cursor_home(&mut self) {
         let content = self.text.to_string();
         let line_start = content[..self.cursor]
@@ -415,7 +367,6 @@ impl EditorState {
         self.selection = None;
     }
 
-    /// Move cursor ao final da linha
     pub fn cursor_end(&mut self) {
         let content = self.text.to_string();
         let line_end = content[self.cursor..]
@@ -426,13 +377,11 @@ impl EditorState {
         self.selection = None;
     }
 
-    /// Encontra limite anterior de caractere (UTF-8)
     fn prev_char_boundary(&self, pos: usize) -> usize {
         let content = self.text.to_string();
         if pos == 0 {
             return 0;
         }
-
         let mut i = pos - 1;
         while i > 0 && !content.is_char_boundary(i) {
             i -= 1;
@@ -440,13 +389,11 @@ impl EditorState {
         i
     }
 
-    /// Encontra limite seguinte de caractere (UTF-8)
     fn next_char_boundary(&self, pos: usize) -> usize {
         let content = self.text.to_string();
         if pos >= content.len() {
             return content.len();
         }
-
         let mut i = pos + 1;
         while i < content.len() && !content.is_char_boundary(i) {
             i += 1;
@@ -489,19 +436,14 @@ impl EditorState {
         self.history.can_redo()
     }
 
-    /// Obtém linha e coluna do cursor
     pub fn cursor_line_col(&self) -> (usize, usize) {
         let content = self.text.to_string();
-
-        // Safely slice content at cursor position
         let content_before_cursor = content.get(0..self.cursor.min(content.len())).unwrap_or("");
-
         let line = content_before_cursor.chars().filter(|&c| c == '\n').count();
-
         let col = content_before_cursor
             .rsplit('\n')
             .next()
-            .map(|s| s.chars().count())
+            .map(|s: &str| s.chars().count())
             .unwrap_or(0);
         (line, col)
     }
@@ -539,10 +481,8 @@ mod tests {
         state.insert_char('a');
         state.insert_char('b');
         assert_eq!(state.get_content(), "ab");
-
         state.undo();
         assert_eq!(state.get_content(), "a");
-
         state.redo();
         assert_eq!(state.get_content(), "ab");
     }
@@ -551,7 +491,7 @@ mod tests {
     fn test_selection_and_copy() {
         let mut state = EditorState::from_string("hello world");
         state.cursor = 0;
-        state.selection = Some(Selection::new(0, 5)); // "hello"
+        state.selection = Some(Selection::new(0, 5));
         state.copy_selection();
         assert_eq!(state.clipboard, "hello");
     }
@@ -568,7 +508,7 @@ mod tests {
     fn test_delete_selection() {
         let mut state = EditorState::from_string("hello world");
         state.cursor = 0;
-        state.selection = Some(Selection::new(0, 5)); // "hello"
+        state.selection = Some(Selection::new(0, 5));
         state.delete_selection();
         assert_eq!(state.get_content(), " world");
     }

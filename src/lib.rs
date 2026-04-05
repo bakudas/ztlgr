@@ -1,9 +1,12 @@
+pub mod agent;
+pub mod cli;
 pub mod config;
 pub mod db;
 pub mod error;
 pub mod link;
 pub mod note;
 pub mod setup;
+pub mod skill;
 pub mod storage;
 pub mod ui;
 

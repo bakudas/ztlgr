@@ -93,12 +93,11 @@ impl BacklinksPane {
 
         let mut lines = Vec::new();
 
-        for (_idx, backlink) in self
+        for backlink in self
             .backlinks
             .iter()
             .skip(self.scroll)
             .take(area.height.saturating_sub(2) as usize)
-            .enumerate()
         {
             // Title of the note linking to us
             lines.push(Line::from(Span::styled(

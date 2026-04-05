@@ -19,6 +19,12 @@ pub struct NoteEditor {
     autocomplete_pattern: String,
 }
 
+impl Default for NoteEditor {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl NoteEditor {
     pub fn new() -> Self {
         Self {

@@ -258,15 +258,13 @@ impl MetadataPane {
             }
 
             // URL (for Reference notes)
-            if let NoteType::Reference { url } = &note.note_type {
-                if let Some(url) = url {
-                    if !url.is_empty() {
-                        lines.push(Line::from(""));
-                        lines.push(Line::from(vec![
-                            Span::styled("URL: ", Style::default().fg(theme.fg_dim())),
-                            Span::styled(url, Style::default().fg(theme.link())),
-                        ]));
-                    }
+            if let NoteType::Reference { url: Some(url) } = &note.note_type {
+                if !url.is_empty() {
+                    lines.push(Line::from(""));
+                    lines.push(Line::from(vec![
+                        Span::styled("URL: ", Style::default().fg(theme.fg_dim())),
+                        Span::styled(url, Style::default().fg(theme.link())),
+                    ]));
                 }
             }
 

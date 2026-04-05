@@ -190,6 +190,7 @@ impl CommandExecutor {
 #[derive(Debug, Clone)]
 pub struct CommandContext {
     pub note_id: Option<String>,
+    #[allow(dead_code)]
     pub note_title: Option<String>,
 }
 

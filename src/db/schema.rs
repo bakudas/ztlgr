@@ -1,6 +1,7 @@
 use parking_lot::Mutex;
 use rusqlite::{types::Type, Row};
 use std::path::{Path, PathBuf};
+use std::str::FromStr;
 use std::sync::Arc;
 
 use crate::error::{Result as ZResult, ZtlgrError};
@@ -66,7 +67,7 @@ impl Database {
     pub fn new(path: &Path) -> ZResult<Self> {
         // Create parent directories if needed
         if let Some(parent) = path.parent() {
-            std::fs::create_dir_all(parent).map_err(|e| ZtlgrError::Io(e))?;
+            std::fs::create_dir_all(parent).map_err(ZtlgrError::Io)?;
         }
 
         let conn = rusqlite::Connection::open(path).map_err(ZtlgrError::Database)?;
@@ -110,7 +111,7 @@ impl Database {
                 note.zettel_id.as_ref().map(|z| z.as_str()),
                 note.parent_id.as_ref().map(|p: &NoteId| p.as_str()),
                 note.source,
-                serde_json::to_string(&note.metadata).map_err(|e| ZtlgrError::Serialization(e))?,
+                serde_json::to_string(&note.metadata).map_err(ZtlgrError::Serialization)?,
                 now.to_rfc3339(),
                 now.to_rfc3339(),
                 note.deleted_at.map(|dt| dt.to_rfc3339()),
@@ -150,7 +151,7 @@ impl Database {
                 note.zettel_id.as_ref().map(|z| z.as_str()),
                 note.parent_id.as_ref().map(|p: &NoteId| p.as_str()),
                 note.source,
-                serde_json::to_string(&note.metadata).map_err(|e| ZtlgrError::Serialization(e))?,
+                serde_json::to_string(&note.metadata).map_err(ZtlgrError::Serialization)?,
                 now.to_rfc3339(),
                 note.deleted_at.map(|dt| dt.to_rfc3339()),
                 note.id.as_str(),

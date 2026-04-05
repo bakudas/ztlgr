@@ -40,6 +40,12 @@ pub enum ZtlgrError {
 
     #[error("File watcher error: {0}")]
     FileWatcher(String),
+
+    #[error("Vault already exists at: {0}")]
+    VaultExists(String),
+
+    #[error("Vault not found: {0}")]
+    VaultNotFound(String),
 }
 
 pub type Result<T> = std::result::Result<T, ZtlgrError>;

@@ -2,6 +2,7 @@ use chrono::{DateTime, Utc};
 use regex::Regex;
 use std::collections::HashMap;
 use std::path::Path;
+use std::str::FromStr;
 
 use super::{Link, LinkType, Storage};
 use crate::error::{Result, ZtlgrError};
@@ -70,7 +71,7 @@ impl OrgStorage {
 
         let title = properties
             .get("TITLE")
-            .map(|s| s.clone())
+            .cloned()
             .unwrap_or_else(|| "Untitled".to_string());
 
         let note_type = properties
@@ -131,7 +132,7 @@ impl Storage for OrgStorage {
     }
 
     fn read_note(&self, path: &Path) -> Result<Note> {
-        let content = std::fs::read_to_string(path).map_err(|e| ZtlgrError::Io(e))?;
+        let content = std::fs::read_to_string(path).map_err(ZtlgrError::Io)?;
 
         let (properties, remaining) = self.extract_properties(&content);
 
@@ -167,12 +168,12 @@ impl Storage for OrgStorage {
 
     fn write_note(&self, note: &Note, path: &Path) -> Result<()> {
         if let Some(parent) = path.parent() {
-            std::fs::create_dir_all(parent).map_err(|e| ZtlgrError::Io(e))?;
+            std::fs::create_dir_all(parent).map_err(ZtlgrError::Io)?;
         }
 
         let content = self.render(note)?;
 
-        std::fs::write(path, content).map_err(|e| ZtlgrError::Io(e))?;
+        std::fs::write(path, content).map_err(ZtlgrError::Io)?;
 
         Ok(())
     }

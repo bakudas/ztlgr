@@ -84,8 +84,8 @@ impl GenericModal {
         let area = f.size();
 
         // Calculate modal dimensions (centered)
-        let modal_width = (area.width * self.width_percent as u16) / 100;
-        let modal_height = (area.height * self.height_percent as u16) / 100;
+        let modal_width = (area.width * self.width_percent) / 100;
+        let modal_height = (area.height * self.height_percent) / 100;
 
         let modal_x = (area.width.saturating_sub(modal_width)) / 2;
         let modal_y = (area.height.saturating_sub(modal_height)) / 2;

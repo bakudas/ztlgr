@@ -1,6 +1,7 @@
 use chrono::{DateTime, Utc};
 use regex::Regex;
 use std::path::Path;
+use std::str::FromStr;
 
 use super::{Link, LinkType, Storage};
 use crate::error::{Result, ZtlgrError};
@@ -45,18 +46,18 @@ impl MarkdownStorage {
 
         if let Some(obj) = yaml.as_mapping() {
             // Standard fields
-            if let Some(_id) = obj.get(&serde_yaml::Value::String("id".to_string())) {
+            if let Some(_id) = obj.get(serde_yaml::Value::String("id".to_string())) {
                 // ID is stored separately, not in metadata
             }
 
-            if let Some(title) = obj.get(&serde_yaml::Value::String("title".to_string())) {
+            if let Some(title) = obj.get(serde_yaml::Value::String("title".to_string())) {
                 // Convert serde_yaml::Value to serde_json::Value
                 if let Ok(json_value) = serde_json::to_value(title) {
                     metadata.custom.insert("title".to_string(), json_value);
                 }
             }
 
-            if let Some(tags) = obj.get(&serde_yaml::Value::String("tags".to_string())) {
+            if let Some(tags) = obj.get(serde_yaml::Value::String("tags".to_string())) {
                 if let Some(tags_vec) = tags.as_sequence() {
                     metadata.tags = Some(
                         tags_vec
@@ -67,7 +68,7 @@ impl MarkdownStorage {
                 }
             }
 
-            if let Some(aliases) = obj.get(&serde_yaml::Value::String("aliases".to_string())) {
+            if let Some(aliases) = obj.get(serde_yaml::Value::String("aliases".to_string())) {
                 if let Some(aliases_vec) = aliases.as_sequence() {
                     metadata.aliases = Some(
                         aliases_vec
@@ -114,7 +115,7 @@ impl Storage for MarkdownStorage {
     }
 
     fn read_note(&self, path: &Path) -> Result<Note> {
-        let content = std::fs::read_to_string(path).map_err(|e| ZtlgrError::Io(e))?;
+        let content = std::fs::read_to_string(path).map_err(ZtlgrError::Io)?;
 
         let (frontmatter, remaining) = self.extract_frontmatter(&content);
 
@@ -137,13 +138,13 @@ impl Storage for MarkdownStorage {
             .ok_or_else(|| ZtlgrError::Parse("Invalid frontmatter".to_string()))?;
 
         let id = obj
-            .get(&serde_yaml::Value::String("id".to_string()))
+            .get(serde_yaml::Value::String("id".to_string()))
             .and_then(|v| v.as_str())
             .map(|s| NoteId::parse(s).unwrap_or_else(|_| NoteId::new()))
             .unwrap_or_else(NoteId::new);
 
         let title = obj
-            .get(&serde_yaml::Value::String("title".to_string()))
+            .get(serde_yaml::Value::String("title".to_string()))
             .and_then(|v| v.as_str())
             .map(|s| s.to_string())
             .unwrap_or_else(|| {
@@ -156,35 +157,35 @@ impl Storage for MarkdownStorage {
             });
 
         let note_type = obj
-            .get(&serde_yaml::Value::String("type".to_string()))
+            .get(serde_yaml::Value::String("type".to_string()))
             .and_then(|v| v.as_str())
             .map(|s| NoteType::from_str(s).unwrap_or_default())
             .unwrap_or_default();
 
         let zettel_id = obj
-            .get(&serde_yaml::Value::String("zettel_id".to_string()))
+            .get(serde_yaml::Value::String("zettel_id".to_string()))
             .and_then(|v| v.as_str())
             .and_then(|s| ZettelId::parse(s).ok());
 
         let parent_id = obj
-            .get(&serde_yaml::Value::String("parent_id".to_string()))
+            .get(serde_yaml::Value::String("parent_id".to_string()))
             .and_then(|v| v.as_str())
             .and_then(|s| NoteId::parse(s).ok());
 
         let source = obj
-            .get(&serde_yaml::Value::String("source".to_string()))
+            .get(serde_yaml::Value::String("source".to_string()))
             .and_then(|v| v.as_str())
             .map(|s| s.to_string());
 
         let created = obj
-            .get(&serde_yaml::Value::String("created".to_string()))
+            .get(serde_yaml::Value::String("created".to_string()))
             .and_then(|v| v.as_str())
             .and_then(|s| DateTime::parse_from_rfc3339(s).ok())
             .map(|dt| dt.with_timezone(&Utc))
             .unwrap_or_else(Utc::now);
 
         let updated = obj
-            .get(&serde_yaml::Value::String("updated".to_string()))
+            .get(serde_yaml::Value::String("updated".to_string()))
             .and_then(|v| v.as_str())
             .and_then(|s| DateTime::parse_from_rfc3339(s).ok())
             .map(|dt| dt.with_timezone(&Utc))
@@ -208,12 +209,12 @@ impl Storage for MarkdownStorage {
     fn write_note(&self, note: &Note, path: &Path) -> Result<()> {
         // Create parent directories if needed
         if let Some(parent) = path.parent() {
-            std::fs::create_dir_all(parent).map_err(|e| ZtlgrError::Io(e))?;
+            std::fs::create_dir_all(parent).map_err(ZtlgrError::Io)?;
         }
 
         let content = self.render(note)?;
 
-        std::fs::write(path, content).map_err(|e| ZtlgrError::Io(e))?;
+        std::fs::write(path, content).map_err(ZtlgrError::Io)?;
 
         Ok(())
     }
@@ -259,14 +260,14 @@ impl Storage for MarkdownStorage {
         frontmatter.push_str(&format!("updated: {}\n", note.updated_at.to_rfc3339()));
 
         if let Some(ref tags) = note.metadata.tags {
-            frontmatter.push_str(&format!("tags:\n"));
+            frontmatter.push_str("tags:\n");
             for tag in tags {
                 frontmatter.push_str(&format!("  - {}\n", tag));
             }
         }
 
         if let Some(ref aliases) = note.metadata.aliases {
-            frontmatter.push_str(&format!("aliases:\n"));
+            frontmatter.push_str("aliases:\n");
             for alias in aliases {
                 frontmatter.push_str(&format!("  - {}\n", alias));
             }

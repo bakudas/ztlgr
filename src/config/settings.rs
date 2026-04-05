@@ -6,7 +6,7 @@ use std::path::{Path, PathBuf};
 
 use super::theme::Theme;
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
 pub struct Config {
     /// Path to vault database file
     pub vault: VaultConfig,
@@ -231,21 +231,6 @@ impl Default for ZettelkastenConfig {
     }
 }
 
-impl Default for Config {
-    fn default() -> Self {
-        Self {
-            vault: VaultConfig::default(),
-            ui: UiConfig::default(),
-            editor: EditorConfig::default(),
-            notes: NotesConfig::default(),
-            search: SearchConfig::default(),
-            graph: GraphConfig::default(),
-            zettelkasten: ZettelkastenConfig::default(),
-            config_path: None,
-        }
-    }
-}
-
 impl Config {
     pub fn load_or_create() -> Result<Self> {
         let config_path = Self::config_path();
@@ -304,13 +289,13 @@ impl Config {
     pub fn get_theme(&self) -> Box<dyn Theme> {
         use crate::config::themes::*;
         match self.ui.theme.as_str() {
-            "dracula" => Box::new(DraculaTheme::default()),
-            "gruvbox" => Box::new(GruvboxTheme::default()),
-            "nord" => Box::new(NordTheme::default()),
-            "solarized" => Box::new(SolarizedTheme::default()),
+            "dracula" => Box::new(DraculaTheme),
+            "gruvbox" => Box::new(GruvboxTheme),
+            "nord" => Box::new(NordTheme),
+            "solarized" => Box::new(SolarizedTheme),
             name => {
                 tracing::warn!("Unknown theme '{}', using dracula", name);
-                Box::new(DraculaTheme::default())
+                Box::new(DraculaTheme)
             }
         }
     }

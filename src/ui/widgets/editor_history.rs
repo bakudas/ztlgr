@@ -77,17 +77,15 @@ impl EditHistory {
 
     /// Pega a ação anterior (para undo)
     pub fn undo(&mut self) -> Option<EditAction> {
-        self.undo_stack.pop().map(|action| {
+        self.undo_stack.pop().inspect(|action| {
             self.redo_stack.push(action.clone());
-            action
         })
     }
 
     /// Pega a ação desfeita (para redo)
     pub fn redo(&mut self) -> Option<EditAction> {
-        self.redo_stack.pop().map(|action| {
+        self.redo_stack.pop().inspect(|action| {
             self.undo_stack.push(action.clone());
-            action
         })
     }
 

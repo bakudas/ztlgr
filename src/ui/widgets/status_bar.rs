@@ -13,6 +13,12 @@ pub struct StatusBar {
     message_timeout: usize,
 }
 
+impl Default for StatusBar {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl StatusBar {
     pub fn new() -> Self {
         Self {

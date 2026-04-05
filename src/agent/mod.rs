@@ -1,3 +1,3 @@
 pub mod placeholder;
 
-pub use placeholder::{NoteAgent, LinkAgent, SearchAgent, GraphAgent};
+pub use placeholder::{GraphAgent, LinkAgent, NoteAgent, SearchAgent};

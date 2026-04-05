@@ -93,7 +93,7 @@ impl Format {
     pub fn from_path(path: &Path) -> Option<Self> {
         path.extension()
             .and_then(|ext| ext.to_str())
-            .and_then(|ext| Self::from_extension(ext))
+            .and_then(Self::from_extension)
     }
 }
 

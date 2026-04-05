@@ -14,6 +14,12 @@ pub struct NoteList {
     scroll: usize,
 }
 
+impl Default for NoteList {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl NoteList {
     pub fn new() -> Self {
         Self { scroll: 0 }

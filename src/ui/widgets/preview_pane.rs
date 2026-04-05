@@ -37,7 +37,7 @@ impl PreviewPane {
         for word in text.split_whitespace() {
             if current_line.is_empty() {
                 current_line = word.to_string();
-            } else if current_line.len() + word.len() + 1 <= width {
+            } else if current_line.len() + word.len() < width {
                 current_line.push(' ');
                 current_line.push_str(word);
             } else {
@@ -67,6 +67,7 @@ impl PreviewPane {
         let mut lines = vec![];
         let mut current_line_spans = vec![];
         let mut in_code_block = false;
+        #[allow(unused_assignments)]
         let mut code_block_lang = String::new();
         let mut in_list = false;
         let mut list_number = 0;

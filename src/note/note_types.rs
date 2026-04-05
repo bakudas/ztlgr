@@ -24,13 +24,18 @@ pub struct Note {
     pub deleted_at: Option<DateTime<Utc>>,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Default)]
 pub enum NoteType {
     Daily,
     Fleeting,
-    Literature { source: String },
+    Literature {
+        source: String,
+    },
+    #[default]
     Permanent,
-    Reference { url: Option<String> },
+    Reference {
+        url: Option<String>,
+    },
     Index,
 }
 
@@ -43,20 +48,6 @@ impl NoteType {
             NoteType::Permanent => "permanent",
             NoteType::Reference { .. } => "reference",
             NoteType::Index => "index",
-        }
-    }
-
-    pub fn from_str(s: &str) -> Result<Self, String> {
-        match s {
-            "daily" => Ok(NoteType::Daily),
-            "fleeting" => Ok(NoteType::Fleeting),
-            "literature" => Ok(NoteType::Literature {
-                source: String::new(),
-            }),
-            "permanent" => Ok(NoteType::Permanent),
-            "reference" => Ok(NoteType::Reference { url: None }),
-            "index" => Ok(NoteType::Index),
-            _ => Err(format!("Invalid note type: {}", s)),
         }
     }
 
@@ -103,15 +94,27 @@ impl NoteType {
     }
 }
 
-impl std::fmt::Display for NoteType {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "{}", self.as_str())
+impl std::str::FromStr for NoteType {
+    type Err = String;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        match s {
+            "daily" => Ok(NoteType::Daily),
+            "fleeting" => Ok(NoteType::Fleeting),
+            "literature" => Ok(NoteType::Literature {
+                source: String::new(),
+            }),
+            "permanent" => Ok(NoteType::Permanent),
+            "reference" => Ok(NoteType::Reference { url: None }),
+            "index" => Ok(NoteType::Index),
+            _ => Err(format!("Invalid note type: {}", s)),
+        }
     }
 }
 
-impl Default for NoteType {
-    fn default() -> Self {
-        NoteType::Permanent
+impl std::fmt::Display for NoteType {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}", self.as_str())
     }
 }
 

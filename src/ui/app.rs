@@ -191,14 +191,14 @@ impl App {
             .margin(1)
             .constraints(if self.show_preview {
                 [
-                    Constraint::Percentage(self.config.ui.sidebar_width as u16),
+                    Constraint::Percentage(self.config.ui.sidebar_width),
                     Constraint::Percentage(50),
-                    Constraint::Percentage(50 - self.config.ui.sidebar_width as u16),
+                    Constraint::Percentage(50 - self.config.ui.sidebar_width),
                 ]
             } else {
                 [
-                    Constraint::Percentage(self.config.ui.sidebar_width as u16),
-                    Constraint::Percentage(100 - self.config.ui.sidebar_width as u16),
+                    Constraint::Percentage(self.config.ui.sidebar_width),
+                    Constraint::Percentage(100 - self.config.ui.sidebar_width),
                     Constraint::Percentage(0),
                 ]
             })
@@ -220,7 +220,15 @@ impl App {
             theme_ref,
             self.mode,
             self.focused_panel == Panel::Editor,
-            &*self.db,
+            &self.db,
+        );
+        self.note_editor.draw(
+            f,
+            chunks[1],
+            theme_ref,
+            self.mode,
+            self.focused_panel == Panel::Editor,
+            &self.db,
         );
 
         if self.show_preview {
@@ -473,7 +481,7 @@ impl App {
             _ => {
                 // Pass to editor
                 self.note_editor.handle_key(key);
-                
+
                 // Update preview in real-time if preview is visible
                 if self.show_preview && matches!(self.right_panel, RightPanel::Preview) {
                     let content = self.note_editor.get_content();
@@ -569,7 +577,7 @@ impl App {
                                 note.updated_at = chrono::Utc::now();
 
                                 // Save to database
-                                if self.db.update_note(&note).is_ok() {
+                                if self.db.update_note(note).is_ok() {
                                     tracing::info!("Note renamed: {} -> {}", selected, note.title);
                                     self.status_bar.set_message(&msg);
                                 } else {
@@ -598,7 +606,7 @@ impl App {
                                 note.updated_at = chrono::Utc::now();
 
                                 // Save to database
-                                if self.db.update_note(&note).is_ok() {
+                                if self.db.update_note(note).is_ok() {
                                     tracing::info!("Note moved to: {}", folder);
                                     self.status_bar.set_message(&msg);
                                 } else {
@@ -626,7 +634,7 @@ impl App {
                                 note.updated_at = chrono::Utc::now();
 
                                 // Save to database
-                                if self.db.update_note(&note).is_ok() {
+                                if self.db.update_note(note).is_ok() {
                                     tracing::info!("Tags added to note: {}", selected);
                                     self.status_bar.set_message(&msg);
                                 } else {
@@ -918,7 +926,7 @@ impl App {
                     note.content = content;
 
                     // Save to database
-                    if self.db.update_note(&note).is_ok() {
+                    if self.db.update_note(note).is_ok() {
                         // Also save to markdown file in vault
                         let vault_path = self
                             .config

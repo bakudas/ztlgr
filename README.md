@@ -12,6 +12,7 @@ A simple and fast terminal-based note-taking application with Zettelkasten metho
 - **Link System**: Wiki-style links `[[note-title]]` with backlinks
 - **Themes**: Dracula (default), Gruvbox, Nord, Solarized, and custom themes
 - **Vim Keybindings**: Modal editing with familiar vim shortcuts
+- **CLI Interface**: Create vaults, search notes, and sync from the command line
 - **Future-Proof Architecture**: Local files, smart db indexes and multi-agent system ready for extensions
 
 ## Installation
@@ -26,11 +27,121 @@ cargo install ztlgr
 # Create a new vault
 ztlgr new my-vault
 
-# Open the vault
+# Open the vault in the TUI
 ztlgr open my-vault
 
-# Or use the default vault location
+# Or run without arguments for the interactive setup wizard
 ztlgr
+```
+
+## CLI Commands
+
+### `ztlgr new <path>`
+
+Create a new Zettelkasten vault with the full directory structure.
+
+```bash
+# Create a markdown vault (default)
+ztlgr new ~/notes
+
+# Create an org-mode vault
+ztlgr new ~/notes --format org
+
+# With short flags
+ztlgr new ~/notes -f org
+```
+
+Creates the following structure:
+```
+my-vault/
+├── .ztlgr/
+│   └── vault.db
+├── permanent/      # Permanent knowledge notes
+├── inbox/          # Fleeting notes
+├── literature/     # Notes from books, articles
+├── reference/      # External reference notes
+├── index/          # Structure notes (MOCs)
+├── daily/          # Daily journal
+├── attachments/    # Images and files
+├── .gitignore
+└── README.md
+```
+
+### `ztlgr open [path]`
+
+Open an existing vault in the TUI.
+
+```bash
+# Open a specific vault
+ztlgr open ~/notes
+
+# Open with global vault flag
+ztlgr --vault ~/notes open
+
+# Without path, uses --vault or falls back to setup wizard
+ztlgr open
+```
+
+### `ztlgr search <query>`
+
+Search notes using SQLite FTS5 full-text search.
+
+```bash
+# Search for a term
+ztlgr search "rust programming"
+
+# Limit results
+ztlgr search "zettelkasten" --limit 10
+ztlgr search "zettelkasten" -l 10
+
+# Search within a specific vault
+ztlgr search "rust" --vault ~/notes
+```
+
+### `ztlgr import <source>`
+
+Import existing notes from a directory into a vault.
+
+```bash
+# Import notes into the current vault
+ztlgr import ~/old-notes --vault ~/notes
+
+# Recursive import
+ztlgr import ~/old-notes --vault ~/notes --recursive
+ztlgr import ~/old-notes --vault ~/notes -r
+```
+
+### `ztlgr sync`
+
+Synchronize vault files with the database.
+
+```bash
+# Quick sync
+ztlgr sync --vault ~/notes
+
+# Force full sync (reconciles all files)
+ztlgr sync --vault ~/notes --force
+ztlgr sync --vault ~/notes -f
+```
+
+### Global Options
+
+| Flag | Description |
+|------|-------------|
+| `--vault <path>` | Default vault directory (env: `ZTLGR_VAULT`) |
+| `-f, --format <fmt>` | Note format: `markdown` or `org` (default: `markdown`) |
+| `-c, --config <path>` | Configuration file path (env: `ZTLGR_CONFIG`) |
+| `-v, --verbose` | Verbosity level (repeat for more: `-vv`, `-vvv`) |
+| `-h, --help` | Print help |
+| `-V, --version` | Print version |
+
+```bash
+# Set vault via environment variable
+export ZTLGR_VAULT=~/notes
+ztlgr search "rust"
+
+# Use verbose mode
+ztlgr -vv sync --vault ~/notes
 ```
 
 ## KeyBindings
@@ -152,6 +263,9 @@ cargo test
 
 # Run
 cargo run
+
+# Format, lint, and test
+make check
 ```
 
 ## License

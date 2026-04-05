@@ -50,7 +50,7 @@ impl Metadata {
 
         if let Some(obj) = yaml.as_mapping() {
             // Standard fields
-            if let Some(tags) = obj.get(&serde_yaml::Value::String("tags".to_string())) {
+            if let Some(tags) = obj.get(serde_yaml::Value::String("tags".to_string())) {
                 if let Some(tags_vec) = tags.as_sequence() {
                     metadata.tags = Some(
                         tags_vec
@@ -61,7 +61,7 @@ impl Metadata {
                 }
             }
 
-            if let Some(aliases) = obj.get(&serde_yaml::Value::String("aliases".to_string())) {
+            if let Some(aliases) = obj.get(serde_yaml::Value::String("aliases".to_string())) {
                 if let Some(aliases_vec) = aliases.as_sequence() {
                     metadata.aliases = Some(
                         aliases_vec
@@ -196,7 +196,7 @@ pub fn extract_frontmatter(content: &str) -> (Option<Metadata>, &str) {
         let end_index = end_index + 1; // Adjust for the slice
         let yaml_content = lines[0..=end_index].join("\n");
         let remaining_start = end_index + 1;
-        let remaining_content = &content[content.find(&lines[remaining_start]).unwrap_or(0)..];
+        let remaining_content = &content[content.find(lines[remaining_start]).unwrap_or(0)..];
 
         match Metadata::from_yaml(&yaml_content) {
             Ok(metadata) => (Some(metadata), remaining_content),
