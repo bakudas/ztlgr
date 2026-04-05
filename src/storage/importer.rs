@@ -63,6 +63,8 @@ impl FileImporter {
 
         result.scan_directories(&self.vault_path)?;
 
+        self.database.rebuild_fts()?;
+
         Ok(result)
     }
 
@@ -113,14 +115,9 @@ impl FileImporter {
     }
 
     fn resolve_link(&self, link: &str) -> Result<Option<Note>> {
-        // Try to resolve by title
         let results = self.database.search_notes(link, 1)?;
 
-        if !results.is_empty() {
-            return Ok(Some(results.into_iter().next().unwrap()));
-        }
-
-        Ok(None)
+        Ok(results.into_iter().next())
     }
 }
 

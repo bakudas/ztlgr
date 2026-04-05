@@ -127,7 +127,7 @@ pub async fn execute(cli: &Cli) -> Result<()> {
             limit,
         }) => {
             let vault_path = resolve_vault_path(cmd_vault.as_ref(), cli.vault.as_ref())?;
-            cmd_search(&vault_path, query, *limit)?;
+            cmd_search(&vault_path, query, *limit, format)?;
         }
         None => {
             run_default_tui(cli).await?;
@@ -249,8 +249,8 @@ fn cmd_sync(vault_path: &Path, format: Format, force: bool) -> Result<()> {
     Ok(())
 }
 
-fn cmd_search(vault_path: &Path, query: &str, limit: usize) -> Result<()> {
-    let vault = Vault::new(vault_path.to_path_buf(), Format::Markdown);
+fn cmd_search(vault_path: &Path, query: &str, limit: usize, format: Format) -> Result<()> {
+    let vault = Vault::new(vault_path.to_path_buf(), format);
 
     if !vault.exists() {
         return Err(ZtlgrError::VaultNotFound(vault_path.display().to_string()));
@@ -321,11 +321,17 @@ fn resolve_vault_path(
     cmd_path: Option<&PathBuf>,
     global_path: Option<&PathBuf>,
 ) -> Result<PathBuf> {
-    cmd_path.or(global_path).cloned().ok_or_else(|| {
+    let raw_path = cmd_path.or(global_path).cloned().ok_or_else(|| {
         ZtlgrError::VaultNotFound(
             "no vault path specified. Use --vault or provide path to command".to_string(),
         )
-    })
+    })?;
+
+    let path_str = raw_path.to_string_lossy();
+    let expanded = shellexpand::full(&path_str)
+        .map_err(|e| ZtlgrError::Config(format!("path expansion failed: {e}")))?;
+
+    Ok(PathBuf::from(expanded.into_owned()))
 }
 
 fn parse_format(s: &str) -> Format {
@@ -427,7 +433,7 @@ mod tests {
 
         cmd_new(&vault_path, "markdown").unwrap();
 
-        let result = cmd_search(&vault_path, "nonexistent query", 10);
+        let result = cmd_search(&vault_path, "nonexistent query", 10, Format::Markdown);
         assert!(result.is_ok());
     }
 
@@ -482,7 +488,7 @@ mod tests {
         let temp_dir = TempDir::new().unwrap();
         let vault_path = temp_dir.path().join("nonexistent_search");
 
-        let result = cmd_search(&vault_path, "query", 10);
+        let result = cmd_search(&vault_path, "query", 10, Format::Markdown);
         assert!(result.is_err());
     }
 

@@ -222,14 +222,6 @@ impl App {
             self.focused_panel == Panel::Editor,
             &self.db,
         );
-        self.note_editor.draw(
-            f,
-            chunks[1],
-            theme_ref,
-            self.mode,
-            self.focused_panel == Panel::Editor,
-            &self.db,
-        );
 
         if self.show_preview {
             match self.right_panel {

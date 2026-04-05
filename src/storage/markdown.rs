@@ -237,7 +237,7 @@ impl Storage for MarkdownStorage {
         frontmatter.push_str(&format!("id: {}\n", note.id));
         frontmatter.push_str(&format!(
             "title: {}\n",
-            serde_yaml::to_string(&note.title).unwrap()
+            serde_yaml::to_string(&note.title).map_err(|e| ZtlgrError::Yaml(e.to_string()))?
         ));
         frontmatter.push_str(&format!("type: {}\n", note.note_type.as_str()));
 
@@ -252,7 +252,7 @@ impl Storage for MarkdownStorage {
         if let Some(ref source) = note.source {
             frontmatter.push_str(&format!(
                 "source: {}\n",
-                serde_yaml::to_string(source).unwrap()
+                serde_yaml::to_string(source).map_err(|e| ZtlgrError::Yaml(e.to_string()))?
             ));
         }
 
@@ -278,7 +278,7 @@ impl Storage for MarkdownStorage {
             frontmatter.push_str(&format!(
                 "{}: {}\n",
                 key,
-                serde_yaml::to_string(value).unwrap()
+                serde_yaml::to_string(value).map_err(|e| ZtlgrError::Yaml(e.to_string()))?
             ));
         }
 

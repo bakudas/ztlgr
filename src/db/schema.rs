@@ -304,6 +304,13 @@ impl Database {
         Ok(notes)
     }
 
+    pub fn rebuild_fts(&self) -> ZResult<()> {
+        let conn = self.conn.lock();
+        conn.execute("INSERT INTO notes_fts(notes_fts) VALUES('rebuild')", [])
+            .map_err(ZtlgrError::Database)?;
+        Ok(())
+    }
+
     pub fn create_link(
         &self,
         source_id: &NoteId,
