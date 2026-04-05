@@ -78,23 +78,21 @@ impl FileSync {
     pub fn full_sync(&self) -> Result<SyncResult> {
         let mut result = SyncResult::default();
 
-        // Get all notes from database
-        let db_notes = self.database.list_notes(1000, 0)?;
+        let db_notes = self.database.list_notes(usize::MAX, 0)?;
 
-        // Get all files in vault
+        let storage: Box<dyn Storage> = match self.format {
+            Format::Markdown => Box::new(MarkdownStorage::new()),
+            Format::Org => Box::new(OrgStorage::new()),
+        };
+
         let files = self.list_vault_files()?;
 
-        // Build sets for comparison
         let db_note_ids: std::collections::HashSet<_> =
             db_notes.iter().map(|n| n.id.as_str().to_string()).collect();
 
         let file_note_ids: std::collections::HashSet<_> = files
             .iter()
             .filter_map(|path| {
-                let storage: Box<dyn Storage> = match self.format {
-                    Format::Markdown => Box::new(MarkdownStorage::new()),
-                    Format::Org => Box::new(OrgStorage::new()),
-                };
                 storage
                     .read_note(path)
                     .ok()
@@ -102,7 +100,6 @@ impl FileSync {
             })
             .collect();
 
-        // Notes only in database (need to create files)
         for note in &db_notes {
             if !file_note_ids.contains(note.id.as_str()) {
                 self.sync_to_file(note)?;
@@ -110,13 +107,7 @@ impl FileSync {
             }
         }
 
-        // Notes only in files (need to import to database)
         for path in &files {
-            let storage: Box<dyn Storage> = match self.format {
-                Format::Markdown => Box::new(MarkdownStorage::new()),
-                Format::Org => Box::new(OrgStorage::new()),
-            };
-
             if let Ok(note) = storage.read_note(path) {
                 if !db_note_ids.contains(note.id.as_str()) {
                     self.database.create_note(&note)?;
