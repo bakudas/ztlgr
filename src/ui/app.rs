@@ -473,6 +473,7 @@ impl App {
             _ => {
                 // Pass to editor
                 self.note_editor.handle_key(key);
+                self.note_editor.update_autocomplete_db(&self.db);
 
                 // Update preview in real-time if preview is visible
                 if self.show_preview && matches!(self.right_panel, RightPanel::Preview) {
