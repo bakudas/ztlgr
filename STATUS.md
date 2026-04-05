@@ -1,7 +1,7 @@
 # Status do Projeto ztlgr
 
 **Data Atualização:** 5 de Abril de 2026  
-**Versão:** 0.2.0 (CLI + TUI unificada 🚀)  
+**Versão:** 0.2.1 (CI/CD fix 🚀)  
 **Status Geral:** 🟢 ACTIVE DEVELOPMENT  
 **Testes:** 264 passing (100% success rate)
 
