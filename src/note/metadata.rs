@@ -191,12 +191,17 @@ pub fn extract_frontmatter(content: &str) -> (Option<Metadata>, &str) {
         return (None, content);
     }
 
-    // Find closing ---
     if let Some(end_index) = lines[1..].iter().position(|line| *line == "---") {
-        let end_index = end_index + 1; // Adjust for the slice
+        let end_index = end_index + 1;
         let yaml_content = lines[0..=end_index].join("\n");
         let remaining_start = end_index + 1;
-        let remaining_content = &content[content.find(lines[remaining_start]).unwrap_or(0)..];
+
+        let remaining_content = if remaining_start < lines.len() {
+            let offset = lines[remaining_start].as_ptr() as usize - content.as_ptr() as usize;
+            &content[offset..]
+        } else {
+            ""
+        };
 
         match Metadata::from_yaml(&yaml_content) {
             Ok(metadata) => (Some(metadata), remaining_content),
