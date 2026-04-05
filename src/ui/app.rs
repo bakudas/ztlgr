@@ -185,26 +185,24 @@ impl App {
     fn draw(&self, f: &mut ratatui::Frame) {
         let theme = self.config.get_theme();
 
-        // Layout
-        let chunks = Layout::default()
-            .direction(Direction::Horizontal)
-            .margin(1)
-            .constraints(if self.show_preview {
-                [
-                    Constraint::Percentage(self.config.ui.sidebar_width),
-                    Constraint::Percentage(50),
-                    Constraint::Percentage(50 - self.config.ui.sidebar_width),
-                ]
-            } else {
-                [
-                    Constraint::Percentage(self.config.ui.sidebar_width),
-                    Constraint::Percentage(100 - self.config.ui.sidebar_width),
-                    Constraint::Percentage(0),
-                ]
-            })
-            .split(f.size());
+        let chunks = if self.show_preview {
+            Layout::default()
+                .direction(Direction::Horizontal)
+                .margin(1)
+                .constraints([
+                    Constraint::Min(15),
+                    Constraint::Min(20),
+                    Constraint::Min(15),
+                ])
+                .split(f.size())
+        } else {
+            Layout::default()
+                .direction(Direction::Horizontal)
+                .margin(1)
+                .constraints([Constraint::Min(15), Constraint::Min(20)])
+                .split(f.size())
+        };
 
-        // Draw widgets
         let theme_ref: &dyn crate::config::Theme = theme.as_ref();
         self.note_list.draw(
             f,
