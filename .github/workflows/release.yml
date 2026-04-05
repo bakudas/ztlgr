@@ -242,6 +242,7 @@ jobs:
     needs: build
     runs-on: ubuntu-latest
     if: "!contains(github.ref, '-')"
+    environment: release
     
     steps:
       - name: Checkout code
