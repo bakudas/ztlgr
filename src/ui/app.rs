@@ -403,8 +403,12 @@ impl App {
     }
 
     fn handle_normal_mode(&mut self, key: KeyEvent) {
+        if self.focused_panel == Panel::Editor {
+            self.handle_editor_normal_mode(key);
+            return;
+        }
+
         match key.code {
-            // Navigation
             KeyCode::Char('j') => {
                 if self.focused_panel == Panel::Right && self.show_preview {
                     match self.right_panel {
@@ -430,7 +434,6 @@ impl App {
             KeyCode::Char('g') => self.goto_top(),
             KeyCode::Char('G') => self.goto_bottom(),
 
-            // Actions
             KeyCode::Char('i') => {
                 self.mode = Mode::Insert;
                 self.focused_panel = Panel::Editor;
@@ -445,14 +448,83 @@ impl App {
             KeyCode::Char(':') => self.mode = Mode::Command,
             KeyCode::Char('v') => self.mode = Mode::Graph,
 
-            // Links
             KeyCode::Enter => self.follow_link(),
             KeyCode::Char('o') => self.open_link_under_cursor(),
             KeyCode::Char('b') => self.go_back(),
 
-            // Views
             KeyCode::Char('p') => self.toggle_preview(),
             KeyCode::Char('m') => self.toggle_metadata(),
+
+            _ => {}
+        }
+    }
+
+    fn handle_editor_normal_mode(&mut self, key: KeyEvent) {
+        match key.code {
+            KeyCode::Char('i') => {
+                self.mode = Mode::Insert;
+            }
+            KeyCode::Char('a') => {
+                self.note_editor.move_cursor_right();
+                self.mode = Mode::Insert;
+            }
+            KeyCode::Char('A') => {
+                self.note_editor.move_cursor_end();
+                self.mode = Mode::Insert;
+            }
+            KeyCode::Char('o') => {
+                self.note_editor.move_cursor_end();
+                self.note_editor.insert_newline();
+                self.mode = Mode::Insert;
+            }
+            KeyCode::Char('O') => {
+                self.note_editor.move_cursor_home();
+                self.note_editor.insert_newline();
+                self.note_editor.move_cursor_up();
+                self.mode = Mode::Insert;
+            }
+
+            KeyCode::Char('h') => self.note_editor.move_cursor_left(),
+            KeyCode::Char('j') => self.note_editor.move_cursor_down(),
+            KeyCode::Char('k') => self.note_editor.move_cursor_up(),
+            KeyCode::Char('l') => self.note_editor.move_cursor_right(),
+
+            KeyCode::Char('w') => self.note_editor.move_cursor_word_forward(),
+            KeyCode::Char('b') => self.note_editor.move_cursor_word_back(),
+
+            KeyCode::Char('0') => self.note_editor.move_cursor_home(),
+            KeyCode::Char('$') => self.note_editor.move_cursor_end(),
+
+            KeyCode::Char('g') => self.note_editor.move_cursor_top(),
+            KeyCode::Char('G') => self.note_editor.move_cursor_bottom(),
+
+            KeyCode::Char('x') => self.note_editor.delete_next_char(),
+            KeyCode::Char('X') => self.note_editor.delete_prev_char(),
+            KeyCode::Char('d') => {
+                self.note_editor.delete_line();
+            }
+            KeyCode::Char('D') => {
+                self.note_editor.delete_to_end_of_line();
+            }
+
+            KeyCode::Char('u') => self.note_editor.undo(),
+            KeyCode::Char('r') if key.modifiers == KeyModifiers::CONTROL => {
+                self.note_editor.redo();
+            }
+
+            KeyCode::Char('y') => {
+                self.note_editor.copy();
+            }
+            KeyCode::Char('p') => {
+                self.note_editor.paste();
+            }
+
+            KeyCode::Char('H') => self.prev_panel(),
+            KeyCode::Char('L') => self.next_panel(),
+
+            KeyCode::Esc => {
+                self.focused_panel = Panel::NoteList;
+            }
 
             _ => {}
         }
