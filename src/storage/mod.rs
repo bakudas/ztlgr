@@ -16,6 +16,17 @@ use crate::error::Result;
 use crate::note::Note;
 use std::path::{Path, PathBuf};
 
+/// Standard vault directory names
+pub const VAULT_DIRS: &[&str] = &[
+    "daily",
+    "inbox",
+    "literature",
+    "permanent",
+    "reference",
+    "index",
+    "attachments",
+];
+
 /// Trait for file-based storage backends
 pub trait Storage: Send + Sync {
     /// Get the file extension for this storage format

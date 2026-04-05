@@ -131,18 +131,7 @@ pub struct ImportResult {
 
 impl ImportResult {
     fn scan_directories(&mut self, vault_path: &Path) -> Result<()> {
-        // Create missing directories
-        let dirs = [
-            "daily",
-            "inbox",
-            "literature",
-            "permanent",
-            "reference",
-            "index",
-            "attachments",
-        ];
-
-        for dir in dirs {
+        for dir in crate::storage::VAULT_DIRS {
             std::fs::create_dir_all(vault_path.join(dir)).map_err(ZtlgrError::Io)?;
         }
 
