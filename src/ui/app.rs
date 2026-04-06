@@ -16,8 +16,8 @@ use std::sync::Arc;
 use super::widgets::modals::note_type_selector::NoteType as SelectorNoteType;
 use super::widgets::{
     Command, CommandContext, CommandExecutor, CommandParser, CommandResult, ConfirmationAction,
-    ConfirmationModal, CreateNoteAction, CreateNoteModal, MetadataPane, NoteEditor, NoteList,
-    NoteTypeAction, NoteTypeSelector, PreviewPane, SearchResult, SearchState, StatusBar,
+    ConfirmationModal, CreateNoteAction, CreateNoteModal, HelpModal, MetadataPane, NoteEditor,
+    NoteList, NoteTypeAction, NoteTypeSelector, PreviewPane, SearchResult, SearchState, StatusBar,
 };
 
 /// Sanitize filename by removing invalid characters
@@ -88,6 +88,7 @@ enum CurrentModal {
     Confirmation(ConfirmationModal),
     NoteTypeSelector(NoteTypeSelector),
     CreateNote(CreateNoteModal),
+    Help(HelpModal),
 }
 
 #[derive(Debug, Clone, Copy, PartialEq)]
@@ -258,6 +259,7 @@ impl App {
                 CurrentModal::Confirmation(m) => m.draw(f, theme_ref),
                 CurrentModal::NoteTypeSelector(m) => m.draw(f, theme_ref),
                 CurrentModal::CreateNote(m) => m.draw(f, theme_ref),
+                CurrentModal::Help(m) => m.draw(f, theme_ref),
             }
         }
     }
@@ -402,6 +404,11 @@ impl App {
                         }
                     }
                 }
+                CurrentModal::Help(modal) => {
+                    if !modal.handle_key(key) {
+                        self.current_modal = None;
+                    }
+                }
             }
         }
         Ok(())
@@ -459,6 +466,7 @@ impl App {
 
             KeyCode::Char('p') => self.toggle_preview(),
             KeyCode::Char('m') => self.toggle_metadata(),
+            KeyCode::Char('?') => self.show_help(),
 
             _ => {}
         }
@@ -634,7 +642,7 @@ impl App {
                 // Handle specific command side effects
                 match command {
                     Command::Help => {
-                        self.status_bar.set_message(&msg);
+                        self.show_help();
                     }
                     Command::Rename(new_title) => {
                         if let Some(selected) = &self.selected_note.clone() {
@@ -969,6 +977,10 @@ impl App {
                 }
             };
         }
+    }
+
+    fn show_help(&mut self) {
+        self.current_modal = Some(CurrentModal::Help(HelpModal::new()));
     }
 
     fn load_note(&mut self) {

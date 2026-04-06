@@ -18,8 +18,8 @@ pub use command::{Command, CommandContext, CommandExecutor, CommandParser, Comma
 pub use link_autocomplete::{LinkAutocomplete, LinkSuggestion};
 pub use metadata_pane::MetadataPane;
 pub use modals::{
-    ConfirmationAction, ConfirmationModal, CreateNoteAction, CreateNoteModal, NoteTypeAction,
-    NoteTypeSelector,
+    ConfirmationAction, ConfirmationModal, CreateNoteAction, CreateNoteModal, HelpModal,
+    NoteTypeAction, NoteTypeSelector,
 };
 pub use note_editor::NoteEditor;
 pub use note_list::NoteList;
