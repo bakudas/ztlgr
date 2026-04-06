@@ -16,6 +16,47 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Binary checksums for verification
 - Automatic crates.io publishing
 
+## [0.3.0] - 2026-04-05
+
+### Added
+- **Vim Modal Editing for Editor Panel**
+  - Full Vim-style navigation: `h/j/k/l`, arrows, `w/b`, `0/$`, `g/G`
+  - Insert mode commands: `i/I/a/A/o/O`
+  - Delete operations: `x/X`, `d` (delete line), `D` (delete to end of line)
+  - Yank/Paste: `y` (yank line), `p` (paste)
+  - Undo/Redo: `u` (undo), `Ctrl+r` (redo)
+  - Block cursor in Normal mode, line cursor in Insert mode
+
+- **Help Modal**
+  - Comprehensive keybindings reference (Normal, Insert, Global modes)
+  - CLI commands documentation (`:new`, `:open`, `:search`, `:import`, `:sync`)
+  - Credits section with author, license, repo link
+  - Navigation with `↑↓/j/k`, close with `Esc/?/q`
+  - Access via `?` key or `:help` command
+
+- **Editor Improvements**
+  - Word wrap with unicode-width support
+  - Arrow key support in Normal mode
+  - Fixed sidebar width (no more collapsing)
+
+### Changed
+- **Editor Refactor**: Replaced custom `TextRope` with `tui-textarea` library
+  - Better performance and reliability
+  - Native Vim-like keybindings support
+  - Built-in undo/redo stack
+
+### Fixed
+- Preview pane rendering with style-preserving wrap and list markers
+- Layout constraints to prevent panel collapsing
+- Phase 3 robustness issues (M1, M2, M5, M7, M8)
+- Extracted shared VAULT_DIRS constant
+- Removed dead code and orphaned files
+
+### Technical
+- Added `tui-textarea` dependency (v0.5)
+- Added `unicode-width` dependency (v0.1)
+- Test count: 279 passing (from 264)
+
 ## [0.1.1] - 2025-04-03
 
 ### Added

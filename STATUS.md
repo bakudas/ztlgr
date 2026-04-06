@@ -1,9 +1,9 @@
 # Status do Projeto ztlgr
 
 **Data Atualização:** 5 de Abril de 2026  
-**Versão:** 0.2.1 (CI/CD fix 🚀)  
+**Versão:** 0.3.0 (Vim Editor + Help Modal 🎉)  
 **Status Geral:** 🟢 ACTIVE DEVELOPMENT  
-**Testes:** 264 passing (100% success rate)
+**Testes:** 279 passing (100% success rate)
 
 ---
 
@@ -18,16 +18,63 @@
 
 ---
 
-## 🚀 LATEST RELEASE: v0.2.0
+## 🚀 LATEST RELEASE: v0.3.0
 
 **Release Date:** April 5, 2026  
-**Release Tag:** v0.2.0
+**Release Tag:** v0.3.0
 
-**What's New in v0.2.0:**
+**What's New in v0.3.0:**
 
-### ✨ CLI Interface Completa
+### ✨ Vim Modal Editing for Editor
 
-Subcomandos implementados com `clap` derive:
+Complete Vim-style editing experience in the editor panel:
+- **Navigation**: `h/j/k/l` (arrows), `w/b` (word), `0/$` (line), `g/G` (document)
+- **Insert Mode**: `i/I/a/A/o/O` (insert/append/open line)
+- **Delete**: `x/X` (char), `d` (line), `D` (to end of line)
+- **Yank/Paste**: `y` (yank), `p` (paste)
+- **Undo/Redo**: `u` (undo), `Ctrl+r` (redo)
+- **Visual**: Block cursor in Normal mode
+
+### ✨ Help Modal
+
+Comprehensive help system accessible via `?` or `:help`:
+- All keybindings organized by mode (Normal, Insert, Global)
+- CLI commands reference (`ztlgr new/open/search/import/sync`)
+- Credits: Author, License (MIT OR Apache-2.0), Repo link
+- Navigation with `↑↓/j/k`, close with `Esc/?/q`
+
+### ✨ Editor Improvements
+
+- **Word Wrap**: Proper text wrapping with unicode-width support
+- **Fixed Sidebar**: No more collapsing panels
+- **Arrow Keys**: Full navigation support in Normal mode
+
+### 🔧 Technical Changes
+
+- Replaced custom `TextRope` with `tui-textarea` library
+- Added `unicode-width` dependency
+- 279 tests passing (up from 264)
+- Zero clippy warnings
+
+---
+
+## ✅ Completed Features
+
+### ✅ Vim Editor Layer (v0.3.0)
+- ✅ **Navigation** - `h/j/k/l`, arrows, `w/b`, `0/$`, `g/G`
+- ✅ **Insert Mode** - `i/I/a/A/o/O`
+- ✅ **Delete Ops** - `x/X`, `d` (dd), `D`
+- ✅ **Yank/Paste** - `y` (yy), `p`
+- ✅ **Undo/Redo** - `u`, `Ctrl+r`
+- ✅ **Block Cursor** - Visual mode indicator
+
+### ✅ Help Modal (v0.3.0)
+- ✅ **Keybindings** - Organized by mode
+- ✅ **CLI Commands** - Reference documentation
+- ✅ **Credits** - Author, license, repo
+- ✅ **Navigation** - Scroll and close bindings
+
+### ✅ CLI Interface (v0.2.0)
 
 | Comando | Descrição |
 |---------|-----------|
@@ -52,7 +99,7 @@ Subcomandos implementados com `clap` derive:
 
 ### 🧹 Code Quality
 
-- 264 testes passando (16 novos testes CLI)
+- 279 testes passando (16 novos testes CLI + 6 help modal)
 - Zero warnings clippy (corrigidos 65+ warnings pré-existentes)
 - Removidos stubs `src/bin/ztlgr-cli.rs` e `src/bin/ztlgr.rs`
 - CLI unificado no `src/main.rs` via `src/cli.rs`
@@ -91,6 +138,7 @@ Subcomandos implementados com `clap` derive:
 - ✅ **Search Mode** - FTS5 integration + results nav
 - ✅ **Command Mode** - Parser + executor (:rename, :move, :tag, :delete)
 - ✅ **Modal System** - Delete confirm, note type selector, create flow
+- ✅ **Help Modal** - All keybindings + CLI commands + credits (6 tests)
 - ✅ **Soft Delete** - 7-day trash retention + recovery
 - ✅ **Metadata Panel** - View/edit note properties
 - ✅ **Markdown Preview** - Rendered preview pane

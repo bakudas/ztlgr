@@ -1,6 +1,6 @@
 [package]
 name = "ztlgr"
-version = "0.2.1"
+version = "0.3.0"
 edition = "2021"
 authors = ["ZettelGraph Team"]
 description = "Terminal-based note-taking app with Zettelkasten methodology"
