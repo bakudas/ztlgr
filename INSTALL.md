@@ -302,4 +302,112 @@ See the [User Guide](#) for detailed workflow instructions.
 
 - **Issues:** [GitHub Issues](https://github.com/bakudas/ztlgr/issues)
 - **Discussions:** [GitHub Discussions](https://github.com/bakudas/ztlgr/discussions)
-- **Documentation:** [docs/](#)
+- **Documentation:** [docs/](docs/)
+
+---
+
+## Appendix: Quick Reference
+
+### Keyboard Shortcuts
+
+#### Normal Mode
+| Key | Action |
+|-----|--------|
+| `j` / `k` | Move down/up through notes |
+| `h` / `l` | Move left/right between panels |
+| `g` / `G` | Jump to first/last note |
+| `n` | New note |
+| `d` | Delete note |
+| `i` | Enter insert mode |
+| `/` | Search |
+| `:` | Command mode |
+| `p` | Toggle preview |
+| `m` | Toggle metadata |
+| `?` | Help |
+| `q` | Quit |
+
+#### Editor Normal Mode (Vim-style)
+| Key | Action |
+|-----|--------|
+| `h/j/k/l` or arrows | Move cursor |
+| `w` / `b` | Word forward/back |
+| `0` / `$` | Line start/end |
+| `g` / `G` | Document top/bottom |
+| `i` | Insert mode |
+| `a` / `A` | Append (at cursor / end of line) |
+| `o` / `O` | Open line below/above |
+| `x` / `X` | Delete next/prev char |
+| `d` | Delete line (dd) |
+| `D` | Delete to end of line |
+| `u` | Undo |
+| `Ctrl+r` | Redo |
+| `y` | Yank (copy) |
+| `p` | Paste |
+| `Esc` | Focus note list |
+
+#### Insert Mode
+| Key | Action |
+|-----|--------|
+| `Esc` | Exit insert mode (auto-save) |
+| `Ctrl+s` | Save note |
+| `Ctrl+z/y` | Undo/Redo |
+| `Ctrl+c/v/x` | Copy/Paste/Cut |
+
+### File Structure
+
+```
+~/.local/share/ztlgr/vault/          # Default vault location
+├── permanent/                        # Long-term notes
+├── inbox/                            # Fleeting notes
+├── literature/                       # Source quotes
+├── reference/                        # External links
+├── index/                            # Structure notes (MOCs)
+├── daily/                            # Daily journal
+└── .ztlgr/
+    └── vault.db                      # Index database
+```
+
+### Configuration Example
+
+Edit `~/.config/ztlgr/config.toml`:
+
+```toml
+[editor]
+auto_save_interval = 30              # Auto-save every 30 seconds (0 = disabled)
+
+[display]
+show_preview = true                  # Show preview pane
+mouse_enabled = true                 # Enable mouse support
+theme = "dracula"                    # Theme: dracula, gruvbox, nord, solarized
+```
+
+### CLI Commands
+
+```bash
+# Create a new vault
+ztlgr new ~/my-notes --format markdown
+
+# Open vault in TUI
+ztlgr open ~/my-notes
+
+# Search notes via FTS5
+ztlgr search "rust zettelkasten" --vault ~/my-notes
+
+# Import existing notes
+ztlgr import ~/existing-notes --vault ~/my-notes
+
+# Sync vault with database
+ztlgr sync --vault ~/my-notes
+
+# Show help
+ztlgr --help
+```
+
+### Tips & Tricks
+
+1. **Fast Navigation**: Use `g` to jump to first note, then `j`/`k` to find others
+2. **Quick Save**: Press `Ctrl+s` in any mode to save
+3. **Vim Mode**: Use full Vim keybindings in the editor panel
+4. **Help**: Press `?` for comprehensive help modal
+5. **Auto-save**: Set `auto_save_interval` in config if you forget to save
+6. **Backup**: Keep backups of `.ztlgr/vault.db` and note files

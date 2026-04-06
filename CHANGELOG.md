@@ -9,7 +9,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 - Comprehensive installation guide (INSTALL.md)
-- Release process documentation (RELEASE.md)
+- Release process documentation (docs/RELEASE.md)
 - Continuous Integration workflow (CI)
 - Automated release workflow with GitHub Actions
 - Support for multiple platforms (Linux, macOS, Windows)

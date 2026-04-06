@@ -4,14 +4,14 @@ This document provides instructions for agentic coding systems working on the zt
 
 ## 📋 STATUS TRACKING PROTOCOL
 
-**CRITICAL: After each successful commit, you MUST update STATUS.md with:**
+**CRITICAL: After each successful commit, you MUST update docs/STATUS.md with:**
 
 1. **Feature/Fix Implemented**: Mark items completed in the relevant Priority section
 2. **Test Count**: Update passing tests count from `cargo test --lib` output
 3. **Next Sprint Focus**: Add next 3 items to work on
 4. **Blockers/Notes**: Document any blockers or architectural decisions
 
-**STATUS.md Structure**:
+**docs/STATUS.md Structure**:
 ```markdown
 ## ✅ PRIORITY [N] ([PHASE]) - [STATUS]
 
@@ -433,14 +433,14 @@ cargo test --lib 2>&1 | tail -5
 # Look for: "test result: ok. XXX passed"
 ```
 
-### 2. Update STATUS.md
+### 2. Update docs/STATUS.md
 Add/update the relevant section with:
 - ✅ Feature name with description
 - Test count added in parentheses: `(+20 tests)`
 - Move completed items from TODO to COMPLETED
 - Update "PRÓXIMOS PASSOS" with next 3 tasks
 
-### 3. Example STATUS.md entry
+### 3. Example docs/STATUS.md entry
 ```markdown
 - ✅ **Link Parsing Infrastructure** (Phase 5A - wiki/markdown/org formats, 33 tests)
   - Commit: `ff7e784`
@@ -448,7 +448,7 @@ Add/update the relevant section with:
 ```
 
 ### 4. If blocking issues exist
-Add to STATUS.md:
+Add to docs/STATUS.md:
 ```markdown
 ### 🔴 Blockers:
 - Issue: [description]
@@ -463,7 +463,7 @@ Add to STATUS.md:
 cargo test --lib 2>&1 | grep "test result"
 # Output: test result: ok. 209 passed
 
-# Then edit STATUS.md to add:
+# Then edit docs/STATUS.md to add:
 # - ✅ **Editor with Undo/Redo** (rope data structure, 40 tests)
 #   - Commit: `abc1234`
 #   - Tests: 209 total passing
