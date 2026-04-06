@@ -4,12 +4,13 @@ use crate::ui::app::Mode;
 use crossterm::event::{KeyCode, KeyEvent};
 use ratatui::{
     layout::Rect,
-    style::{Modifier, Style},
+    style::{Color, Modifier, Style},
     text::{Line, Span},
     widgets::{Block, Borders, Paragraph},
     Frame,
 };
 use tui_textarea::{CursorMove, TextArea};
+use unicode_width::UnicodeWidthChar;
 
 use super::link_autocomplete::LinkAutocomplete;
 
@@ -73,6 +74,43 @@ impl NoteEditor {
         (self.textarea.cursor().0, self.textarea.cursor().1)
     }
 
+    /// Wraps a line into segments that fit within `max_width` display columns.
+    /// Returns a vector of (start_char_idx, end_char_idx) for each segment.
+    pub fn wrap_line_chars(line: &str, max_width: usize) -> Vec<(usize, usize)> {
+        if max_width == 0 {
+            return vec![(0, line.chars().count())];
+        }
+
+        let mut segments = Vec::new();
+        let mut current_width = 0;
+        let mut segment_start = 0;
+
+        let chars: Vec<char> = line.chars().collect();
+        let char_count = chars.len();
+
+        for (i, &ch) in chars.iter().enumerate() {
+            let char_width = ch.width().unwrap_or(1);
+
+            if current_width + char_width > max_width && current_width > 0 {
+                segments.push((segment_start, i));
+                segment_start = i;
+                current_width = char_width;
+            } else {
+                current_width += char_width;
+            }
+        }
+
+        if segment_start < char_count {
+            segments.push((segment_start, char_count));
+        }
+
+        if segments.is_empty() {
+            segments.push((0, char_count));
+        }
+
+        segments
+    }
+
     fn extract_link_pattern_at_cursor(&self) -> Option<String> {
         let lines = self.textarea.lines();
         let (row, col) = self.textarea.cursor();
@@ -130,62 +168,107 @@ impl NoteEditor {
             Mode::Graph => "-- GRAPH --",
         };
 
-        let (line, col) = self.cursor_line_col();
+        let (cursor_line, cursor_col) = self.cursor_line_col();
         let lines = self.textarea.lines();
 
-        let rendered_lines: Vec<Line> = if lines.iter().all(|l| l.is_empty()) {
-            vec![Line::from(Span::styled(
+        let max_width = area.width.saturating_sub(2) as usize;
+
+        let mut rendered_lines: Vec<Line> = Vec::new();
+        let mut wrapped_cursor_row = 0;
+        let mut wrapped_cursor_col_offset = 0;
+
+        if lines.iter().all(|l| l.is_empty()) {
+            rendered_lines.push(Line::from(Span::styled(
                 "Press 'i' to enter insert mode or 'n' to create a new note",
                 Style::default().fg(theme.fg_dim()),
-            ))]
+            )));
         } else {
-            lines
-                .iter()
-                .map(|text| {
-                    let validated_links = LinkValidator::extract_links(text, 0, db);
+            for (line_idx, text) in lines.iter().enumerate() {
+                let segments = Self::wrap_line_chars(text, max_width);
+
+                for (start, end) in segments.iter() {
+                    let segment_text: String =
+                        text.chars().skip(*start).take(end - start).collect();
+                    let validated_links = LinkValidator::extract_links(text, line_idx, db);
+
                     if validated_links.is_empty() {
-                        Line::from(text.as_str())
+                        rendered_lines.push(Line::from(segment_text));
                     } else {
                         let mut spans = Vec::new();
-                        let mut last_end = 0;
+                        let mut last_end = *start;
+
                         for link in &validated_links {
-                            let start = link.info.position.start_col;
-                            let end = link.info.position.end_col;
-                            if last_end < start {
-                                spans.push(Span::raw(&text[last_end..start]));
+                            let link_start = link.info.position.start_col;
+                            let link_end = link.info.position.end_col;
+
+                            if link_end <= *start || link_start >= *end {
+                                continue;
                             }
+
+                            let overlap_start = link_start.max(*start);
+                            let overlap_end = link_end.min(*end);
+
+                            if last_end < overlap_start {
+                                let gap: String = text
+                                    .chars()
+                                    .skip(last_end)
+                                    .take(overlap_start - last_end)
+                                    .collect();
+                                spans.push(Span::raw(gap));
+                            }
+
+                            let link_text: String = text
+                                .chars()
+                                .skip(overlap_start)
+                                .take(overlap_end - overlap_start)
+                                .collect();
                             let link_color = if link.is_valid {
                                 theme.link()
                             } else {
                                 theme.error()
                             };
                             spans.push(Span::styled(
-                                &text[start..end],
+                                link_text,
                                 Style::default().fg(link_color).add_modifier(Modifier::BOLD),
                             ));
-                            last_end = end;
+                            last_end = overlap_end;
                         }
-                        if last_end < text.len() {
-                            spans.push(Span::raw(&text[last_end..]));
+
+                        if last_end < *end {
+                            let remainder: String =
+                                text.chars().skip(last_end).take(*end - last_end).collect();
+                            spans.push(Span::raw(remainder));
                         }
-                        Line::from(spans)
+
+                        rendered_lines.push(Line::from(spans));
                     }
-                })
-                .collect()
-        };
+
+                    if line_idx == cursor_line && cursor_col >= *start && cursor_col <= *end {
+                        wrapped_cursor_row = rendered_lines.len() - 1;
+                        wrapped_cursor_col_offset = cursor_col - start;
+                    }
+                }
+
+                if segments.is_empty() && line_idx == cursor_line && cursor_col == 0 {
+                    wrapped_cursor_row = rendered_lines.len();
+                    wrapped_cursor_col_offset = 0;
+                    rendered_lines.push(Line::from(""));
+                }
+            }
+        }
 
         let unsaved_indicator = if self.is_dirty() { " [●]" } else { " [✓]" };
         let title = format!(
             " Editor {} - Line {} Col {} {}",
             mode_text,
-            line + 1,
-            col + 1,
+            cursor_line + 1,
+            cursor_col + 1,
             unsaved_indicator
         );
 
         let visible_height = area.height.saturating_sub(2) as usize;
-        let scroll_y = if visible_height > 0 && line >= visible_height {
-            line - visible_height + 1
+        let scroll_y = if visible_height > 0 && wrapped_cursor_row >= visible_height {
+            wrapped_cursor_row - visible_height + 1
         } else {
             0
         };
@@ -208,12 +291,32 @@ impl NoteEditor {
 
         f.render_widget(paragraph, area);
 
-        if mode == Mode::Insert && area.width > 2 && area.height > 2 && line >= scroll_y {
-            let max_col = area.width.saturating_sub(3) as usize;
-            let cursor_x = area.x + 1 + (col.min(max_col) as u16);
-            let cursor_y = area.y + 1 + ((line - scroll_y) as u16);
-            if cursor_y < area.y + area.height - 1 {
-                f.set_cursor(cursor_x, cursor_y);
+        if area.width > 2 && area.height > 2 {
+            let display_row = wrapped_cursor_row.saturating_sub(scroll_y);
+            if display_row < visible_height {
+                let cursor_x =
+                    area.x + 1 + (wrapped_cursor_col_offset as u16).min(max_width as u16);
+                let cursor_y = area.y + 1 + (display_row as u16);
+
+                if cursor_y < area.y + area.height - 1 {
+                    if mode == Mode::Normal && is_focused {
+                        let block = Block::default().style(
+                            Style::default()
+                                .fg(Color::White)
+                                .bg(theme.accent())
+                                .add_modifier(Modifier::BOLD),
+                        );
+                        let block_area = Rect {
+                            x: cursor_x,
+                            y: cursor_y,
+                            width: 1,
+                            height: 1,
+                        };
+                        f.render_widget(block, block_area);
+                    } else if mode == Mode::Insert {
+                        f.set_cursor(cursor_x, cursor_y);
+                    }
+                }
             }
         }
 
@@ -487,10 +590,81 @@ mod tests {
     fn test_editor_copy_paste() {
         let mut editor = NoteEditor::new();
         editor.set_content("hello");
-        // tui-textarea copy uses system clipboard; test via yank_text instead
         editor.textarea.select_all();
         editor.textarea.copy();
         let yanked = editor.textarea.yank_text();
         assert_eq!(yanked, "hello");
+    }
+
+    #[test]
+    fn test_wrap_line_chars_empty_string() {
+        let segments = NoteEditor::wrap_line_chars("", 10);
+        assert_eq!(segments, vec![(0, 0)]);
+    }
+
+    #[test]
+    fn test_wrap_line_chars_fits_in_width() {
+        let segments = NoteEditor::wrap_line_chars("hello", 10);
+        assert_eq!(segments, vec![(0, 5)]);
+    }
+
+    #[test]
+    fn test_wrap_line_chars_exactly_fits() {
+        let segments = NoteEditor::wrap_line_chars("hello", 5);
+        assert_eq!(segments, vec![(0, 5)]);
+    }
+
+    #[test]
+    fn test_wrap_line_chars_splits_long_line() {
+        let segments = NoteEditor::wrap_line_chars("hello world", 5);
+        assert_eq!(segments, vec![(0, 5), (5, 10), (10, 11)]);
+    }
+
+    #[test]
+    fn test_wrap_line_chars_splits_into_three() {
+        let segments = NoteEditor::wrap_line_chars("abcdefghijkl", 4);
+        assert_eq!(segments, vec![(0, 4), (4, 8), (8, 12)]);
+    }
+
+    #[test]
+    fn test_wrap_line_chars_zero_width() {
+        let segments = NoteEditor::wrap_line_chars("hello", 0);
+        assert_eq!(segments, vec![(0, 5)]);
+    }
+
+    #[test]
+    fn test_wrap_line_chars_single_char_width() {
+        let segments = NoteEditor::wrap_line_chars("abc", 1);
+        assert_eq!(segments, vec![(0, 1), (1, 2), (2, 3)]);
+    }
+
+    #[test]
+    fn test_wrap_line_chars_with_unicode_wide_chars() {
+        let segments = NoteEditor::wrap_line_chars("中文测试", 4);
+        assert_eq!(segments, vec![(0, 2), (2, 4)]);
+    }
+
+    #[test]
+    fn test_wrap_line_chars_mixed_width() {
+        let segments = NoteEditor::wrap_line_chars("ab中文cd", 4);
+        assert_eq!(segments, vec![(0, 3), (3, 6)]);
+    }
+
+    #[test]
+    fn test_wrap_line_chars_preserves_char_boundaries() {
+        let segments = NoteEditor::wrap_line_chars("hello world foo bar", 10);
+        assert_eq!(segments, vec![(0, 10), (10, 19)]);
+    }
+
+    #[test]
+    fn test_wrap_line_chars_emoji_handling() {
+        let segments = NoteEditor::wrap_line_chars("a🎉b🎉c", 3);
+        assert_eq!(segments, vec![(0, 2), (2, 4), (4, 5)]);
+    }
+
+    #[test]
+    fn test_wrap_line_chars_large_width_no_wrap() {
+        let segments = NoteEditor::wrap_line_chars("short", 100);
+        assert_eq!(segments, vec![(0, 5)]);
     }
 }

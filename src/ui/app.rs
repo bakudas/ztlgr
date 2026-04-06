@@ -185,21 +185,26 @@ impl App {
     fn draw(&self, f: &mut ratatui::Frame) {
         let theme = self.config.get_theme();
 
+        let sidebar_width = self.config.ui.sidebar_width;
+
         let chunks = if self.show_preview {
             Layout::default()
                 .direction(Direction::Horizontal)
                 .margin(1)
                 .constraints([
-                    Constraint::Min(15),
-                    Constraint::Min(20),
-                    Constraint::Min(15),
+                    Constraint::Length(sidebar_width),
+                    Constraint::Percentage(50),
+                    Constraint::Percentage(50),
                 ])
                 .split(f.size())
         } else {
             Layout::default()
                 .direction(Direction::Horizontal)
                 .margin(1)
-                .constraints([Constraint::Min(15), Constraint::Min(20)])
+                .constraints([
+                    Constraint::Length(sidebar_width),
+                    Constraint::Percentage(100),
+                ])
                 .split(f.size())
         };
 
