@@ -489,10 +489,10 @@ impl App {
                 self.mode = Mode::Insert;
             }
 
-            KeyCode::Char('h') => self.note_editor.move_cursor_left(),
-            KeyCode::Char('j') => self.note_editor.move_cursor_down(),
-            KeyCode::Char('k') => self.note_editor.move_cursor_up(),
-            KeyCode::Char('l') => self.note_editor.move_cursor_right(),
+            KeyCode::Char('h') | KeyCode::Left => self.note_editor.move_cursor_left(),
+            KeyCode::Char('j') | KeyCode::Down => self.note_editor.move_cursor_down(),
+            KeyCode::Char('k') | KeyCode::Up => self.note_editor.move_cursor_up(),
+            KeyCode::Char('l') | KeyCode::Right => self.note_editor.move_cursor_right(),
 
             KeyCode::Char('w') => self.note_editor.move_cursor_word_forward(),
             KeyCode::Char('b') => self.note_editor.move_cursor_word_back(),
