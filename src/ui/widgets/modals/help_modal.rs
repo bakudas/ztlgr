@@ -112,6 +112,14 @@ impl HelpModal {
             Span::styled("  Switch panels", fg_style),
         ]));
         lines.push(Line::from(vec![
+            Span::styled("Enter    ", key_style),
+            Span::styled("  Follow link under cursor", fg_style),
+        ]));
+        lines.push(Line::from(vec![
+            Span::styled("Ctrl+o   ", key_style),
+            Span::styled("  Go back (navigation history)", fg_style),
+        ]));
+        lines.push(Line::from(vec![
             Span::styled("Esc      ", key_style),
             Span::styled("  Focus note list", fg_style),
         ]));
@@ -137,6 +145,14 @@ impl HelpModal {
         lines.push(Line::from(vec![
             Span::styled("Ctrl+c/v/x", key_style),
             Span::styled("  Copy/Paste/Cut", fg_style),
+        ]));
+        lines.push(Line::from(vec![
+            Span::styled("[[       ", key_style),
+            Span::styled("  Start link autocomplete", fg_style),
+        ]));
+        lines.push(Line::from(vec![
+            Span::styled("Tab/Enter", key_style),
+            Span::styled("  Accept autocomplete suggestion", fg_style),
         ]));
         lines.push(Line::from(""));
 
@@ -177,6 +193,18 @@ impl HelpModal {
         lines.push(Line::from(vec![
             Span::styled("m        ", key_style),
             Span::styled("  Toggle metadata", fg_style),
+        ]));
+        lines.push(Line::from(vec![
+            Span::styled("B        ", key_style),
+            Span::styled("  Toggle backlinks (preview footer)", fg_style),
+        ]));
+        lines.push(Line::from(vec![
+            Span::styled("Enter    ", key_style),
+            Span::styled("  Follow link under cursor", fg_style),
+        ]));
+        lines.push(Line::from(vec![
+            Span::styled("Ctrl+o   ", key_style),
+            Span::styled("  Go back (link history)", fg_style),
         ]));
         lines.push(Line::from(vec![
             Span::styled("?        ", key_style),

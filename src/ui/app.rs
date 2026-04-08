@@ -48,7 +48,6 @@ use crate::storage::{MarkdownStorage, Storage};
 enum RightPanel {
     Preview,
     Metadata,
-    Backlinks,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq)]
@@ -90,6 +89,7 @@ pub struct App {
     right_panel: RightPanel,
     focused_panel: Panel,
     show_preview: bool,
+    show_backlinks: bool,
     running: bool,
 }
 
@@ -137,6 +137,7 @@ impl App {
             right_panel: RightPanel::Preview,
             focused_panel: Panel::NoteList,
             show_preview: true,
+            show_backlinks: false,
             running: true,
         };
 
@@ -241,19 +242,36 @@ impl App {
 
         if self.show_preview {
             match self.right_panel {
-                RightPanel::Preview => self.preview_pane.draw(
-                    f,
-                    chunks[2],
-                    theme_ref,
-                    self.focused_panel == Panel::Right,
-                ),
+                RightPanel::Preview => {
+                    if self.show_backlinks {
+                        // Split right panel: 70% preview, 30% backlinks footer
+                        let right_chunks = Layout::default()
+                            .direction(Direction::Vertical)
+                            .constraints([Constraint::Percentage(70), Constraint::Percentage(30)])
+                            .split(chunks[2]);
+
+                        self.preview_pane.draw(
+                            f,
+                            right_chunks[0],
+                            theme_ref,
+                            self.focused_panel == Panel::Right,
+                        );
+                        self.backlinks_pane.draw(f, right_chunks[1], theme_ref);
+                    } else {
+                        self.preview_pane.draw(
+                            f,
+                            chunks[2],
+                            theme_ref,
+                            self.focused_panel == Panel::Right,
+                        );
+                    }
+                }
                 RightPanel::Metadata => self.metadata_pane.draw(
                     f,
                     chunks[2],
                     theme_ref,
                     self.focused_panel == Panel::Right,
                 ),
-                RightPanel::Backlinks => self.backlinks_pane.draw(f, chunks[2], theme_ref),
             }
         }
 
@@ -439,7 +457,6 @@ impl App {
                     match self.right_panel {
                         RightPanel::Preview => self.preview_pane.scroll_down(),
                         RightPanel::Metadata => self.next_note(),
-                        RightPanel::Backlinks => self.backlinks_pane.scroll_down(),
                     }
                 } else {
                     self.next_note()
@@ -450,7 +467,6 @@ impl App {
                     match self.right_panel {
                         RightPanel::Preview => self.preview_pane.scroll_up(),
                         RightPanel::Metadata => self.prev_note(),
-                        RightPanel::Backlinks => self.backlinks_pane.scroll_up(),
                     }
                 } else {
                     self.prev_note()
@@ -476,8 +492,13 @@ impl App {
             KeyCode::Char('v') => self.mode = Mode::Graph,
 
             KeyCode::Enter => self.follow_link(),
-            KeyCode::Char('o') => self.open_link_under_cursor(),
-            KeyCode::Char('b') => self.go_back(),
+            KeyCode::Char('o') => {
+                if key.modifiers == KeyModifiers::CONTROL {
+                    self.go_back();
+                } else {
+                    self.open_link_under_cursor();
+                }
+            }
 
             KeyCode::Char('p') => self.toggle_preview(),
             KeyCode::Char('m') => self.toggle_metadata(),
@@ -502,9 +523,13 @@ impl App {
                 self.mode = Mode::Insert;
             }
             KeyCode::Char('o') => {
-                self.note_editor.move_cursor_end();
-                self.note_editor.insert_newline();
-                self.mode = Mode::Insert;
+                if key.modifiers == KeyModifiers::CONTROL {
+                    self.go_back();
+                } else {
+                    self.note_editor.move_cursor_end();
+                    self.note_editor.insert_newline();
+                    self.mode = Mode::Insert;
+                }
             }
             KeyCode::Char('O') => {
                 self.note_editor.move_cursor_home();
@@ -550,6 +575,9 @@ impl App {
 
             KeyCode::Char('H') => self.prev_panel(),
             KeyCode::Char('L') => self.next_panel(),
+
+            // Link following
+            KeyCode::Enter => self.follow_link(),
 
             KeyCode::Esc => {
                 self.focused_panel = Panel::NoteList;
@@ -1115,7 +1143,7 @@ impl App {
             // Toggle between preview and metadata
             self.right_panel = match self.right_panel {
                 RightPanel::Preview => RightPanel::Metadata,
-                RightPanel::Metadata | RightPanel::Backlinks => {
+                RightPanel::Metadata => {
                     // When switching back to preview, update with current content
                     let content = self.note_editor.get_content();
                     self.preview_pane.set_content(&content);
@@ -1130,23 +1158,20 @@ impl App {
     }
 
     fn toggle_backlinks(&mut self) {
-        if self.show_preview {
-            if matches!(self.right_panel, RightPanel::Backlinks) {
-                // Switch back to preview, clear backlinks
-                self.backlinks_pane.clear();
+        self.show_backlinks = !self.show_backlinks;
+        if self.show_backlinks {
+            // Ensure preview is visible and showing preview (not metadata)
+            if !self.show_preview {
+                self.show_preview = true;
+            }
+            if !matches!(self.right_panel, RightPanel::Preview) {
                 let content = self.note_editor.get_content();
                 self.preview_pane.set_content(&content);
                 self.right_panel = RightPanel::Preview;
-            } else {
-                // Switch to backlinks and load them
-                self.right_panel = RightPanel::Backlinks;
-                self.load_backlinks();
             }
-        } else {
-            // If preview panel is hidden, show it with backlinks
-            self.show_preview = true;
-            self.right_panel = RightPanel::Backlinks;
             self.load_backlinks();
+        } else {
+            self.backlinks_pane.clear();
         }
     }
 
@@ -1234,8 +1259,8 @@ impl App {
                     self.preview_pane.set_content(&note.content);
                     self.metadata_pane.set_note(note);
 
-                    // Refresh backlinks if the backlinks panel is showing
-                    if matches!(self.right_panel, RightPanel::Backlinks) {
+                    // Refresh backlinks if the backlinks footer is visible
+                    if self.show_backlinks {
                         self.load_backlinks();
                     }
                 }

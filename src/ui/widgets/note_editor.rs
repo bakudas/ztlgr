@@ -141,12 +141,13 @@ impl NoteEditor {
             .map(|s| (s.note_title.clone(), s.note_id.clone()))
     }
 
-    pub fn insert_suggestion(&mut self, note_id: &str) {
+    pub fn insert_suggestion(&mut self, note_title: &str) {
         if let Some(pattern) = self.extract_link_pattern_at_cursor() {
-            for _ in 0..pattern.len() {
+            // Delete the pattern text AND the opening "[[" (pattern.len() + 2)
+            for _ in 0..(pattern.len() + 2) {
                 self.textarea.delete_char();
             }
-            self.textarea.insert_str(format!("[[{}]]", note_id));
+            self.textarea.insert_str(format!("[[{}]]", note_title));
             self.autocomplete.clear();
         }
     }
@@ -370,8 +371,8 @@ impl NoteEditor {
             KeyCode::Tab | KeyCode::Enter => {
                 if self.autocomplete.is_visible() {
                     if let Some(suggestion) = self.autocomplete.selected() {
-                        let note_id = suggestion.note_id.clone();
-                        self.insert_suggestion(&note_id);
+                        let note_title = suggestion.note_title.clone();
+                        self.insert_suggestion(&note_title);
                         return true;
                     }
                 }
@@ -709,5 +710,29 @@ mod tests {
         editor.set_content("hello world");
         editor.move_cursor_end();
         assert_eq!(editor.cursor_col(), 11);
+    }
+
+    #[test]
+    fn test_insert_suggestion_replaces_pattern_with_title() {
+        let mut editor = NoteEditor::new();
+        editor.set_content("check [[mel");
+        // Move cursor to end of line (after "[[mel")
+        editor.move_cursor_end();
+        // insert_suggestion should delete "[[mel" (5 chars) and insert "[[mel fala do papai]]"
+        editor.insert_suggestion("mel fala do papai");
+        let content = editor.get_content();
+        assert_eq!(content, "check [[mel fala do papai]]");
+    }
+
+    #[test]
+    fn test_insert_suggestion_no_double_brackets() {
+        let mut editor = NoteEditor::new();
+        editor.set_content("link [[te");
+        editor.move_cursor_end();
+        editor.insert_suggestion("teste links");
+        let content = editor.get_content();
+        // Should NOT produce "link [[[[teste links]]" (double brackets)
+        assert_eq!(content, "link [[teste links]]");
+        assert!(!content.contains("[[[["));
     }
 }

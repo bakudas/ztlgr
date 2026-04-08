@@ -9,7 +9,7 @@ pub struct NavigationPoint {
     pub cursor_pos: usize,
 }
 
-/// Navigation history for link following (Ctrl+] to follow, Ctrl+[ to go back)
+/// Navigation history for link following (Enter to follow, Ctrl+O to go back)
 pub struct NavigationHistory {
     /// Stack of previously visited notes
     history: VecDeque<NavigationPoint>,

@@ -59,6 +59,7 @@ impl BacklinksPane {
     }
 
     /// Scroll up
+    #[allow(dead_code)]
     pub fn scroll_up(&mut self) {
         if self.scroll > 0 {
             self.scroll -= 1;
@@ -66,6 +67,7 @@ impl BacklinksPane {
     }
 
     /// Scroll down
+    #[allow(dead_code)]
     pub fn scroll_down(&mut self) {
         let max_scroll = self.backlinks.len().saturating_sub(1);
         if self.scroll < max_scroll {

@@ -3,7 +3,7 @@
 **Data Atualização:** 7 de Abril de 2026  
 **Versão:** 0.4.0 (Inter-note Links Integration)  
 **Status Geral:** 🟢 ACTIVE DEVELOPMENT  
-**Testes:** 370 passing (100% success rate)
+**Testes:** 372 passing (100% success rate)
 
 ---
 
