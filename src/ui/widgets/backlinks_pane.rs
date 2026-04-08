@@ -1,8 +1,3 @@
-// TODO: This module is complete but not yet integrated into app.rs
-// Integration pending: add Ctrl+B keybinding to toggle backlinks pane
-// Tracked in: Phase 5B Link Features
-#![allow(dead_code)]
-
 use crate::db::Database;
 use crate::note::NoteId;
 use ratatui::{
@@ -21,6 +16,8 @@ pub struct BacklinksPane {
 
 #[derive(Debug, Clone)]
 pub struct BacklinkItem {
+    /// Source note ID - used for navigating to the linking note.
+    #[allow(dead_code)]
     pub source_id: String,
     pub source_title: String,
     pub context: Option<String>,
@@ -34,18 +31,24 @@ impl BacklinksPane {
         }
     }
 
-    /// Load backlinks for a specific note
+    /// Load backlinks for a specific note from the database.
     pub fn load_backlinks(
         &mut self,
-        _note_id: &NoteId,
-        _db: &Database,
+        note_id: &NoteId,
+        db: &Database,
     ) -> Result<(), Box<dyn std::error::Error>> {
-        // Query the backlinks view from the database
-        // SELECT source_id, context FROM backlinks WHERE note_id = ?
-
-        // For now, we'll leave this as a placeholder
-        // In the real implementation, this would query the database
         self.backlinks.clear();
+        self.scroll = 0;
+
+        let raw_backlinks = db.get_backlinks(note_id)?;
+        for (source_id, source_title, context) in raw_backlinks {
+            self.backlinks.push(BacklinkItem {
+                source_id,
+                source_title,
+                context,
+            });
+        }
+
         Ok(())
     }
 

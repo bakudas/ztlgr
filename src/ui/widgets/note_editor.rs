@@ -484,6 +484,19 @@ impl NoteEditor {
     pub fn line_count(&self) -> usize {
         self.textarea.lines().len()
     }
+
+    /// Get the text of the current cursor line.
+    ///
+    /// Returns `None` if the cursor is out of bounds.
+    pub fn get_current_line(&self) -> Option<String> {
+        let (row, _) = self.textarea.cursor();
+        self.textarea.lines().get(row).map(|s| s.to_string())
+    }
+
+    /// Get the current cursor column position.
+    pub fn cursor_col(&self) -> usize {
+        self.textarea.cursor().1
+    }
 }
 
 #[cfg(test)]
@@ -666,5 +679,35 @@ mod tests {
     fn test_wrap_line_chars_large_width_no_wrap() {
         let segments = NoteEditor::wrap_line_chars("short", 100);
         assert_eq!(segments, vec![(0, 5)]);
+    }
+
+    #[test]
+    fn test_get_current_line() {
+        let mut editor = NoteEditor::new();
+        editor.set_content("hello\nworld\nfoo");
+        // Cursor starts at line 0
+        assert_eq!(editor.get_current_line(), Some("hello".to_string()));
+    }
+
+    #[test]
+    fn test_get_current_line_after_move() {
+        let mut editor = NoteEditor::new();
+        editor.set_content("line1\nline2\nline3");
+        editor.move_cursor_down();
+        assert_eq!(editor.get_current_line(), Some("line2".to_string()));
+    }
+
+    #[test]
+    fn test_get_current_line_empty() {
+        let editor = NoteEditor::new();
+        assert_eq!(editor.get_current_line(), Some("".to_string()));
+    }
+
+    #[test]
+    fn test_cursor_col() {
+        let mut editor = NoteEditor::new();
+        editor.set_content("hello world");
+        editor.move_cursor_end();
+        assert_eq!(editor.cursor_col(), 11);
     }
 }

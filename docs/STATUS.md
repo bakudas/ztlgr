@@ -1,9 +1,9 @@
 # Status do Projeto ztlgr
 
 **Data Atualização:** 7 de Abril de 2026  
-**Versão:** 0.3.1 (Full Markdown Preview)  
+**Versão:** 0.4.0 (Inter-note Links Integration)  
 **Status Geral:** 🟢 ACTIVE DEVELOPMENT  
-**Testes:** 337 passing (100% success rate)
+**Testes:** 370 passing (100% success rate)
 
 ---
 
@@ -12,13 +12,65 @@
 ### Progresso Geral
 - ✅ **Infrastructure**: 100% (setup, DB, storage, themes)
 - ✅ **Core Features**: 100% (editor, search, command, modals)
-- ✅ **Link System**: 100% (parsing + validation + highlighting + autocomplete + following + backlinks)
+- ✅ **Link System**: 100% (parsing + validation + highlighting + autocomplete + following + backlinks + DB integration)
 - ✅ **CLI Interface**: 100% (new, open, search, import, sync)
 - ✅ **Markdown Preview**: 100% (blockquotes, tables, task lists, footnotes, images, wiki-links)
+- ✅ **Inter-note Links**: 100% (backlinks pane, link following, navigation history, autocomplete, extract & store)
 
 ---
 
-## 🚀 LATEST RELEASE: v0.3.1
+## 🚀 LATEST RELEASE: v0.4.0
+
+**Release Date:** April 7, 2026  
+**Release Tag:** v0.4.0
+
+**What's New in v0.4.0:**
+
+### ✨ Inter-note Links Integration
+
+Full integration of the link system into the application:
+
+- **Database Layer** (4 new methods + 15 tests):
+  - `get_backlinks()` - Retrieve all notes linking to a given note
+  - `delete_links_for_note()` - Clear all outgoing links for a note
+  - `find_note_by_title()` - Case-insensitive note lookup by title
+  - `get_links_for_note()` - Retrieve all outgoing links for a note
+
+- **Link Following** (`Ctrl+]` forward, `Ctrl+[` back):
+  - Detects wiki-style `[[target]]`/`[[target|label]]` and markdown-style `[label](target)` at cursor position
+  - Resolves targets by title (case-insensitive) or note ID
+  - Opens external URLs with status bar message
+  - Navigation history with LIFO ordering (max 50 entries)
+
+- **Backlinks Pane** (`B` to toggle):
+  - Shows all notes linking to the current note
+  - Displayed as right panel option (`RightPanel::Backlinks`)
+  - Scroll support with `j/k` keys
+  - Auto-refreshes when loading notes
+
+- **Link Autocomplete** (Insert mode):
+  - Tab/Enter to accept suggestions
+  - Up/Down to navigate suggestion list
+  - Only active when autocomplete popup is visible
+
+- **Extract & Store Links** (automatic):
+  - On every note save, parses content via `LinkValidator::extract_all_links()`
+  - Resolves targets by ID or title
+  - Stores in DB with link type and context
+  - Deletes old links first to keep graph in sync
+
+### 🔧 Technical Changes
+
+- Bumped version from 0.3.0 to 0.4.0
+- 370 tests passing (+33 new tests, up from 337)
+- Declared orphaned modules (`link_following`, `navigation_history`) in `ui/mod.rs`
+- Removed blanket `#![allow(dead_code)]` from `backlinks_pane.rs` and `link_autocomplete.rs`
+- Cleaned up unused imports in `widgets/mod.rs`
+- Added `get_current_line()` and `cursor_col()` to `NoteEditor` for cursor context
+
+---
+
+## 🚀 PREVIOUS RELEASE: v0.3.1
 
 **Release Date:** April 7, 2026  
 **Release Tag:** v0.3.1
@@ -92,6 +144,15 @@ Comprehensive help system accessible via `?` or `:help`:
 ---
 
 ## ✅ Completed Features
+
+### ✅ Inter-note Links Integration (v0.4.0)
+- ✅ **DB Methods** - `get_backlinks()`, `delete_links_for_note()`, `find_note_by_title()`, `get_links_for_note()` (15 tests)
+- ✅ **Link Following** - Detect link at cursor, resolve by title/ID, navigate (`Ctrl+]`/`Ctrl+[`)
+- ✅ **Navigation History** - LIFO with max 50 entries, go back support
+- ✅ **Backlinks Pane** - `B` toggle, right panel, scroll with `j/k`, auto-refresh
+- ✅ **Autocomplete Wiring** - Tab/Enter accept, Up/Down navigate, insert mode only
+- ✅ **Extract & Store Links** - Auto-parse on save, sync link graph in DB
+- ✅ **Code Cleanup** - Removed dead_code allows, declared orphaned modules, cleaned imports
 
 ### ✅ Full Markdown Preview (v0.3.1)
 - ✅ **Blockquotes** - Nested levels (up to 5), colored `│` prefix
@@ -204,13 +265,13 @@ Comprehensive help system accessible via `?` or `:help`:
 
 ## 🟠 PRÓXIMOS PASSOS
 
-### Sprint Atual: Inter-note Links + Knowledge Graph
+### Sprint Atual: Knowledge Graph Visualization (Phase 3)
 
-- [ ] Integrate backlinks pane into app (Ctrl+B toggle)
-- [ ] Integrate link autocomplete into editor (trigger on `[[`)
-- [ ] Implement link following (Ctrl+] forward, Ctrl+[ back)
-- [ ] Wire navigation history into app
-- [ ] Graph visualization (ASCII art knowledge graph)
+- [ ] Design graph layout algorithm (force-directed or hierarchical)
+- [ ] Implement ASCII/Unicode graph rendering in TUI
+- [ ] Wire `Mode::Graph` with navigation (zoom, pan, select node)
+- [ ] Show note connections from `links` table
+- [ ] Graph filtering by note type, tags, or link depth
 
 ### Futuro:
 
@@ -313,5 +374,5 @@ ztlgr sync --vault ~/my-notes --force
 
 ---
 
-**Status**: 🟢 Full Markdown Preview Complete - Starting Inter-note Links  
-**Próximo**: Backlinks integration, link following, knowledge graph.
+**Status**: 🟢 Inter-note Links Integration Complete - Starting Knowledge Graph  
+**Próximo**: Graph visualization, graph navigation, graph filtering.

@@ -11,11 +11,8 @@ pub mod preview_pane;
 pub mod search;
 pub mod status_bar;
 
-#[allow(unused_imports)]
-pub use backlinks_pane::{BacklinkItem, BacklinksPane};
+pub use backlinks_pane::BacklinksPane;
 pub use command::{Command, CommandContext, CommandExecutor, CommandParser, CommandResult};
-#[allow(unused_imports)]
-pub use link_autocomplete::{LinkAutocomplete, LinkSuggestion};
 pub use metadata_pane::MetadataPane;
 pub use modals::{
     ConfirmationAction, ConfirmationModal, CreateNoteAction, CreateNoteModal, HelpModal,

@@ -15,10 +15,14 @@ use std::sync::Arc;
 
 use super::widgets::modals::note_type_selector::NoteType as SelectorNoteType;
 use super::widgets::{
-    Command, CommandContext, CommandExecutor, CommandParser, CommandResult, ConfirmationAction,
-    ConfirmationModal, CreateNoteAction, CreateNoteModal, HelpModal, MetadataPane, NoteEditor,
-    NoteList, NoteTypeAction, NoteTypeSelector, PreviewPane, SearchResult, SearchState, StatusBar,
+    BacklinksPane, Command, CommandContext, CommandExecutor, CommandParser, CommandResult,
+    ConfirmationAction, ConfirmationModal, CreateNoteAction, CreateNoteModal, HelpModal,
+    MetadataPane, NoteEditor, NoteList, NoteTypeAction, NoteTypeSelector, PreviewPane,
+    SearchResult, SearchState, StatusBar,
 };
+
+use super::link_following::detect_link_at_cursor;
+use super::navigation_history::{NavigationHistory, NavigationPoint};
 
 /// Sanitize filename by removing invalid characters
 fn sanitize_filename(name: &str) -> String {
@@ -36,6 +40,7 @@ fn sanitize_filename(name: &str) -> String {
 use crate::config::Config;
 use crate::db::Database;
 use crate::error::Result;
+use crate::link::{validator::LinkValidator, LinkTarget};
 use crate::note::Note;
 use crate::storage::{MarkdownStorage, Storage};
 
@@ -43,6 +48,7 @@ use crate::storage::{MarkdownStorage, Storage};
 enum RightPanel {
     Preview,
     Metadata,
+    Backlinks,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq)]
@@ -67,7 +73,11 @@ pub struct App {
     note_editor: NoteEditor,
     preview_pane: PreviewPane,
     metadata_pane: MetadataPane,
+    backlinks_pane: BacklinksPane,
     status_bar: StatusBar,
+
+    // Navigation history for link following
+    navigation_history: NavigationHistory,
 
     // Modal state
     current_modal: Option<CurrentModal>,
@@ -118,10 +128,12 @@ impl App {
             note_editor: NoteEditor::new(),
             preview_pane: PreviewPane::new(),
             metadata_pane: MetadataPane::new(),
+            backlinks_pane: BacklinksPane::new(),
             status_bar: StatusBar::new(),
             current_modal: None,
             pending_note_type: None,
             search_state: SearchState::new(),
+            navigation_history: NavigationHistory::new(50),
             right_panel: RightPanel::Preview,
             focused_panel: Panel::NoteList,
             show_preview: true,
@@ -241,6 +253,7 @@ impl App {
                     theme_ref,
                     self.focused_panel == Panel::Right,
                 ),
+                RightPanel::Backlinks => self.backlinks_pane.draw(f, chunks[2], theme_ref),
             }
         }
 
@@ -426,6 +439,7 @@ impl App {
                     match self.right_panel {
                         RightPanel::Preview => self.preview_pane.scroll_down(),
                         RightPanel::Metadata => self.next_note(),
+                        RightPanel::Backlinks => self.backlinks_pane.scroll_down(),
                     }
                 } else {
                     self.next_note()
@@ -436,6 +450,7 @@ impl App {
                     match self.right_panel {
                         RightPanel::Preview => self.preview_pane.scroll_up(),
                         RightPanel::Metadata => self.prev_note(),
+                        RightPanel::Backlinks => self.backlinks_pane.scroll_up(),
                     }
                 } else {
                     self.prev_note()
@@ -466,6 +481,7 @@ impl App {
 
             KeyCode::Char('p') => self.toggle_preview(),
             KeyCode::Char('m') => self.toggle_metadata(),
+            KeyCode::Char('B') => self.toggle_backlinks(),
             KeyCode::Char('?') => self.show_help(),
 
             _ => {}
@@ -554,6 +570,31 @@ impl App {
                 self.save_current_note();
             }
             _ => {
+                // If autocomplete is visible, let it handle navigation keys first
+                if self.note_editor.is_autocomplete_visible() {
+                    match key.code {
+                        KeyCode::Tab | KeyCode::Enter => {
+                            let handled = self.note_editor.handle_autocomplete_key(key, &self.db);
+                            if handled {
+                                // Suggestion was inserted, update preview
+                                if self.show_preview
+                                    && matches!(self.right_panel, RightPanel::Preview)
+                                {
+                                    let content = self.note_editor.get_content();
+                                    self.preview_pane.set_content(&content);
+                                }
+                                return;
+                            }
+                            // If not handled (no suggestion selected), fall through to normal key handling
+                        }
+                        KeyCode::Down | KeyCode::Up => {
+                            self.note_editor.handle_autocomplete_key(key, &self.db);
+                            return;
+                        }
+                        _ => {}
+                    }
+                }
+
                 // Pass to editor
                 self.note_editor.handle_key(key);
                 self.note_editor.update_autocomplete_db(&self.db);
@@ -945,15 +986,120 @@ impl App {
     }
 
     fn follow_link(&mut self) {
-        // Not implemented yet
+        // Get the current line and cursor column from the editor
+        let line = match self.note_editor.get_current_line() {
+            Some(l) => l,
+            None => return,
+        };
+        let col = self.note_editor.cursor_col();
+
+        // Detect if cursor is on a link
+        let target = match detect_link_at_cursor(&line, col) {
+            Some(t) => t,
+            None => {
+                self.status_bar.set_message("No link under cursor");
+                return;
+            }
+        };
+
+        // Skip external URLs
+        if target.starts_with("http://") || target.starts_with("https://") {
+            self.status_bar.set_message("Use 'o' to open external URLs");
+            return;
+        }
+
+        // Try to resolve the link target to a note
+        // First try by exact title match
+        let target_note = match self.db.find_note_by_title(&target) {
+            Ok(Some(note)) => Some(note),
+            _ => {
+                // Try by note ID
+                if let Ok(id) = crate::note::NoteId::parse(&target) {
+                    self.db.get_note(&id).ok().flatten()
+                } else {
+                    None
+                }
+            }
+        };
+
+        match target_note {
+            Some(note) => {
+                // Push current note to navigation history before navigating
+                if let Some(current_id) = &self.selected_note {
+                    let current_title = self
+                        .notes
+                        .iter()
+                        .find(|n| n.id.as_str() == current_id)
+                        .map(|n| n.title.clone())
+                        .unwrap_or_default();
+                    let (cursor_line, _) = self.note_editor.cursor_line_col();
+
+                    self.navigation_history.push(NavigationPoint {
+                        note_id: current_id.clone(),
+                        note_title: current_title,
+                        cursor_pos: cursor_line,
+                    });
+                }
+
+                // Save current note before navigating
+                self.save_current_note();
+
+                // Navigate to the target note
+                let target_id = note.id.as_str().to_string();
+                self.selected_note = Some(target_id);
+                self.load_note();
+                self.status_bar
+                    .set_message(&format!("Followed link to: {}", note.title));
+            }
+            None => {
+                self.status_bar
+                    .set_message(&format!("Note not found: '{}'", target));
+            }
+        }
     }
 
     fn open_link_under_cursor(&mut self) {
-        // Not implemented yet
+        // Get the current line and cursor column from the editor
+        let line = match self.note_editor.get_current_line() {
+            Some(l) => l,
+            None => return,
+        };
+        let col = self.note_editor.cursor_col();
+
+        // Detect if cursor is on a link
+        let target = match detect_link_at_cursor(&line, col) {
+            Some(t) => t,
+            None => {
+                self.status_bar.set_message("No link under cursor");
+                return;
+            }
+        };
+
+        // For external URLs, attempt to open in browser
+        if target.starts_with("http://") || target.starts_with("https://") {
+            self.status_bar
+                .set_message(&format!("External URL: {}", target));
+            // Could use `open::that(&target)` in the future
+            return;
+        }
+
+        // For internal links, same behavior as follow_link
+        self.follow_link();
     }
 
     fn go_back(&mut self) {
-        // Not implemented yet
+        if let Some(point) = self.navigation_history.pop() {
+            // Save current note before going back
+            self.save_current_note();
+
+            // Navigate to the previous note
+            self.selected_note = Some(point.note_id);
+            self.load_note();
+            self.status_bar
+                .set_message(&format!("Back to: {}", point.note_title));
+        } else {
+            self.status_bar.set_message("No navigation history");
+        }
     }
 
     fn toggle_preview(&mut self) {
@@ -969,7 +1115,7 @@ impl App {
             // Toggle between preview and metadata
             self.right_panel = match self.right_panel {
                 RightPanel::Preview => RightPanel::Metadata,
-                RightPanel::Metadata => {
+                RightPanel::Metadata | RightPanel::Backlinks => {
                     // When switching back to preview, update with current content
                     let content = self.note_editor.get_content();
                     self.preview_pane.set_content(&content);
@@ -983,6 +1129,103 @@ impl App {
         self.current_modal = Some(CurrentModal::Help(HelpModal::new()));
     }
 
+    fn toggle_backlinks(&mut self) {
+        if self.show_preview {
+            if matches!(self.right_panel, RightPanel::Backlinks) {
+                // Switch back to preview, clear backlinks
+                self.backlinks_pane.clear();
+                let content = self.note_editor.get_content();
+                self.preview_pane.set_content(&content);
+                self.right_panel = RightPanel::Preview;
+            } else {
+                // Switch to backlinks and load them
+                self.right_panel = RightPanel::Backlinks;
+                self.load_backlinks();
+            }
+        } else {
+            // If preview panel is hidden, show it with backlinks
+            self.show_preview = true;
+            self.right_panel = RightPanel::Backlinks;
+            self.load_backlinks();
+        }
+    }
+
+    fn load_backlinks(&mut self) {
+        if let Some(selected) = &self.selected_note {
+            if let Ok(id) = crate::note::NoteId::parse(selected) {
+                if let Err(e) = self.backlinks_pane.load_backlinks(&id, &self.db) {
+                    self.status_bar
+                        .set_message(&format!("Error loading backlinks: {}", e));
+                }
+            }
+        }
+    }
+
+    /// Extract links from note content and store them in the database.
+    ///
+    /// This clears all existing links for the note and re-inserts them
+    /// based on the current content, keeping the link graph in sync.
+    fn extract_and_store_links(&self, note_id_str: &str, content: &str) {
+        let Ok(source_id) = crate::note::NoteId::parse(note_id_str) else {
+            return;
+        };
+
+        // Delete existing links for this note
+        if self.db.delete_links_for_note(&source_id).is_err() {
+            return;
+        }
+
+        // Extract all links from the content
+        let validated_links = LinkValidator::extract_all_links(content, &self.db);
+
+        for vlink in &validated_links {
+            let target_str = match &vlink.info.target {
+                LinkTarget::NoteId(id) => id.clone(),
+                LinkTarget::ExternalUrl(_) => continue, // Skip external URLs
+            };
+
+            // Try to resolve the target to a note ID
+            // First try as a direct note ID
+            let target_note_id = if let Ok(id) = crate::note::NoteId::parse(&target_str) {
+                if self.db.get_note(&id).ok().flatten().is_some() {
+                    Some(id)
+                } else {
+                    None
+                }
+            } else {
+                None
+            };
+
+            // If not found by ID, try by title
+            let target_note_id = target_note_id.or_else(|| {
+                self.db
+                    .find_note_by_title(&target_str)
+                    .ok()
+                    .flatten()
+                    .map(|n| n.id)
+            });
+
+            if let Some(target_id) = target_note_id {
+                let link_type = match vlink.info.format {
+                    crate::link::LinkFormat::Wiki => "wiki",
+                    crate::link::LinkFormat::Markdown => "markdown",
+                    crate::link::LinkFormat::OrgMode => "orgmode",
+                };
+
+                // Get a context snippet (surrounding text)
+                let context = if !vlink.info.label.is_empty() {
+                    Some(vlink.info.label.as_str())
+                } else {
+                    Some(vlink.info.raw.as_str())
+                };
+
+                let _ = self
+                    .db
+                    .create_link(&source_id, &target_id, link_type, context);
+            }
+        }
+    }
+
     fn load_note(&mut self) {
         if let Some(selected) = &self.selected_note {
             if let Ok(id) = crate::note::NoteId::parse(selected) {
@@ -990,6 +1233,11 @@ impl App {
                     self.note_editor.set_content(&note.content);
                     self.preview_pane.set_content(&note.content);
                     self.metadata_pane.set_note(note);
+
+                    // Refresh backlinks if the backlinks panel is showing
+                    if matches!(self.right_panel, RightPanel::Backlinks) {
+                        self.load_backlinks();
+                    }
                 }
             }
         }
@@ -1003,7 +1251,7 @@ impl App {
 
                 // Find the note and update it
                 if let Some(note) = self.notes.iter_mut().find(|n| n.id.as_str() == selected) {
-                    note.content = content;
+                    note.content = content.clone();
 
                     // Save to database
                     if self.db.update_note(note).is_ok() {
@@ -1057,6 +1305,10 @@ impl App {
                         self.status_bar.set_message("Error saving note");
                     }
                 }
+
+                // Extract and store links (done after releasing the mutable borrow on self.notes)
+                let selected_owned = selected.clone();
+                self.extract_and_store_links(&selected_owned, &content);
             }
         } else {
             self.status_bar.set_message("No note selected");

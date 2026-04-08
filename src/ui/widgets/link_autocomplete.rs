@@ -1,8 +1,3 @@
-// TODO: This module is complete but not yet integrated into app.rs
-// Integration pending: add Up/Down arrow key handling for autocomplete selection
-// Tracked in: Phase 5B Link Features
-#![allow(dead_code)]
-
 use crate::db::Database;
 use crate::link::fuzzy_match;
 use crate::note::Note;

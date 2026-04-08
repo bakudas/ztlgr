@@ -343,6 +343,110 @@ impl Database {
         Ok(())
     }
 
+    /// Get all backlinks (incoming links) for a given note.
+    ///
+    /// Returns a list of (source_id, source_title, context) tuples
+    /// representing notes that link to the specified note.
+    pub fn get_backlinks(
+        &self,
+        note_id: &NoteId,
+    ) -> ZResult<Vec<(String, String, Option<String>)>> {
+        let conn = self.conn.lock();
+
+        let mut stmt = conn
+            .prepare(
+                "SELECT b.backlink_id, n.title, b.context
+                 FROM backlinks b
+                 JOIN notes n ON n.id = b.backlink_id
+                 WHERE b.note_id = ?1 AND n.deleted_at IS NULL
+                 ORDER BY b.created_at DESC",
+            )
+            .map_err(ZtlgrError::Database)?;
+
+        let backlinks = stmt
+            .query_map(rusqlite::params![note_id.as_str()], |row| {
+                Ok((
+                    row.get::<_, String>(0)?,
+                    row.get::<_, String>(1)?,
+                    row.get::<_, Option<String>>(2)?,
+                ))
+            })
+            .map_err(ZtlgrError::Database)?
+            .collect::<std::result::Result<Vec<_>, _>>()
+            .map_err(ZtlgrError::Database)?;
+
+        Ok(backlinks)
+    }
+
+    /// Delete all outgoing links from a note.
+    ///
+    /// Used before re-inserting parsed links when a note's content is updated.
+    pub fn delete_links_for_note(&self, source_id: &NoteId) -> ZResult<usize> {
+        let conn = self.conn.lock();
+
+        let affected = conn
+            .execute(
+                "DELETE FROM links WHERE source_id = ?1",
+                rusqlite::params![source_id.as_str()],
+            )
+            .map_err(ZtlgrError::Database)?;
+
+        Ok(affected)
+    }
+
+    /// Find a note by its exact title (case-insensitive).
+    ///
+    /// Returns the first matching non-deleted note.
+    pub fn find_note_by_title(&self, title: &str) -> ZResult<Option<Note>> {
+        let conn = self.conn.lock();
+
+        let mut stmt = conn.prepare(
+            "SELECT id, title, content, note_type, zettel_id, parent_id, source, metadata, created_at, updated_at, deleted_at
+             FROM notes
+             WHERE LOWER(title) = LOWER(?1) AND deleted_at IS NULL
+             LIMIT 1"
+        ).map_err(ZtlgrError::Database)?;
+
+        let note = stmt.query_row(rusqlite::params![title], note_from_row).ok();
+
+        Ok(note)
+    }
+
+    /// Get all outgoing links from a note.
+    ///
+    /// Returns a list of (target_id, target_title, link_type, context) tuples.
+    pub fn get_links_for_note(
+        &self,
+        source_id: &NoteId,
+    ) -> ZResult<Vec<(String, String, String, Option<String>)>> {
+        let conn = self.conn.lock();
+
+        let mut stmt = conn
+            .prepare(
+                "SELECT l.target_id, n.title, l.link_type, l.context
+                 FROM links l
+                 JOIN notes n ON n.id = l.target_id
+                 WHERE l.source_id = ?1 AND n.deleted_at IS NULL
+                 ORDER BY l.created_at DESC",
+            )
+            .map_err(ZtlgrError::Database)?;
+
+        let links = stmt
+            .query_map(rusqlite::params![source_id.as_str()], |row| {
+                Ok((
+                    row.get::<_, String>(0)?,
+                    row.get::<_, String>(1)?,
+                    row.get::<_, String>(2)?,
+                    row.get::<_, Option<String>>(3)?,
+                ))
+            })
+            .map_err(ZtlgrError::Database)?
+            .collect::<std::result::Result<Vec<_>, _>>()
+            .map_err(ZtlgrError::Database)?;
+
+        Ok(links)
+    }
+
     pub fn get_path(&self) -> &Path {
         &self.path
     }
@@ -619,5 +723,279 @@ mod tests {
             retrieved.deleted_at.is_none(),
             "Restored note should have deleted_at = None"
         );
+    }
+
+    // --- Link-related tests ---
+
+    #[test]
+    fn test_create_link_and_get_backlinks() {
+        let (db, _temp) = create_test_db();
+        let note_a = create_test_note("Note A");
+        let note_b = create_test_note("Note B");
+
+        let id_a = db.create_note(&note_a).expect("Failed to create note A");
+        let id_b = db.create_note(&note_b).expect("Failed to create note B");
+
+        // Create a link from A -> B
+        db.create_link(&id_a, &id_b, "reference", Some("see also B"))
+            .expect("Failed to create link");
+
+        // Get backlinks for B should show A
+        let backlinks = db.get_backlinks(&id_b).expect("Failed to get backlinks");
+        assert_eq!(backlinks.len(), 1);
+        assert_eq!(backlinks[0].0, id_a.as_str());
+        assert_eq!(backlinks[0].1, "Note A");
+        assert_eq!(backlinks[0].2, Some("see also B".to_string()));
+    }
+
+    #[test]
+    fn test_get_backlinks_empty() {
+        let (db, _temp) = create_test_db();
+        let note = create_test_note("Lonely Note");
+        let note_id = db.create_note(&note).expect("Failed to create note");
+
+        let backlinks = db.get_backlinks(&note_id).expect("Failed to get backlinks");
+        assert!(backlinks.is_empty());
+    }
+
+    #[test]
+    fn test_get_backlinks_excludes_deleted_sources() {
+        let (db, _temp) = create_test_db();
+        let note_a = create_test_note("Source A");
+        let note_b = create_test_note("Target B");
+
+        let id_a = db.create_note(&note_a).expect("Failed to create note A");
+        let id_b = db.create_note(&note_b).expect("Failed to create note B");
+
+        db.create_link(&id_a, &id_b, "reference", None)
+            .expect("Failed to create link");
+
+        // Delete the source note
+        db.delete_note(&id_a).expect("Failed to delete note A");
+
+        // Backlinks should be empty since source is deleted
+        let backlinks = db.get_backlinks(&id_b).expect("Failed to get backlinks");
+        assert!(
+            backlinks.is_empty(),
+            "Deleted source notes should not appear in backlinks"
+        );
+    }
+
+    #[test]
+    fn test_get_backlinks_multiple_sources() {
+        let (db, _temp) = create_test_db();
+        let note_a = create_test_note("Source A");
+        let note_b = create_test_note("Source B");
+        let note_c = create_test_note("Target C");
+
+        let id_a = db.create_note(&note_a).expect("Failed");
+        let id_b = db.create_note(&note_b).expect("Failed");
+        let id_c = db.create_note(&note_c).expect("Failed");
+
+        db.create_link(&id_a, &id_c, "reference", Some("from A"))
+            .expect("Failed");
+        db.create_link(&id_b, &id_c, "reference", Some("from B"))
+            .expect("Failed");
+
+        let backlinks = db.get_backlinks(&id_c).expect("Failed to get backlinks");
+        assert_eq!(backlinks.len(), 2);
+
+        let titles: Vec<&str> = backlinks.iter().map(|b| b.1.as_str()).collect();
+        assert!(titles.contains(&"Source A"));
+        assert!(titles.contains(&"Source B"));
+    }
+
+    #[test]
+    fn test_delete_links_for_note() {
+        let (db, _temp) = create_test_db();
+        let note_a = create_test_note("Source");
+        let note_b = create_test_note("Target 1");
+        let note_c = create_test_note("Target 2");
+
+        let id_a = db.create_note(&note_a).expect("Failed");
+        let id_b = db.create_note(&note_b).expect("Failed");
+        let id_c = db.create_note(&note_c).expect("Failed");
+
+        db.create_link(&id_a, &id_b, "reference", None)
+            .expect("Failed");
+        db.create_link(&id_a, &id_c, "reference", None)
+            .expect("Failed");
+
+        // Delete all links from A
+        let deleted = db
+            .delete_links_for_note(&id_a)
+            .expect("Failed to delete links");
+        assert_eq!(deleted, 2);
+
+        // Backlinks should be empty for both targets
+        let bl_b = db.get_backlinks(&id_b).expect("Failed");
+        let bl_c = db.get_backlinks(&id_c).expect("Failed");
+        assert!(bl_b.is_empty());
+        assert!(bl_c.is_empty());
+    }
+
+    #[test]
+    fn test_delete_links_for_note_no_links() {
+        let (db, _temp) = create_test_db();
+        let note = create_test_note("No Links");
+        let note_id = db.create_note(&note).expect("Failed");
+
+        let deleted = db
+            .delete_links_for_note(&note_id)
+            .expect("Failed to delete links");
+        assert_eq!(deleted, 0);
+    }
+
+    #[test]
+    fn test_find_note_by_title() {
+        let (db, _temp) = create_test_db();
+        let note = create_test_note("My Unique Title");
+        let note_id = db.create_note(&note).expect("Failed to create note");
+
+        let found = db
+            .find_note_by_title("My Unique Title")
+            .expect("Failed to find note");
+        assert!(found.is_some());
+        assert_eq!(found.unwrap().id.as_str(), note_id.as_str());
+    }
+
+    #[test]
+    fn test_find_note_by_title_case_insensitive() {
+        let (db, _temp) = create_test_db();
+        let note = create_test_note("Case Sensitive Title");
+        let note_id = db.create_note(&note).expect("Failed to create note");
+
+        let found = db
+            .find_note_by_title("case sensitive title")
+            .expect("Failed to find note");
+        assert!(found.is_some());
+        assert_eq!(found.unwrap().id.as_str(), note_id.as_str());
+    }
+
+    #[test]
+    fn test_find_note_by_title_not_found() {
+        let (db, _temp) = create_test_db();
+        let note = create_test_note("Existing Note");
+        db.create_note(&note).expect("Failed");
+
+        let found = db.find_note_by_title("Nonexistent Title").expect("Failed");
+        assert!(found.is_none());
+    }
+
+    #[test]
+    fn test_find_note_by_title_excludes_deleted() {
+        let (db, _temp) = create_test_db();
+        let note = create_test_note("Deleted Title");
+        let note_id = db.create_note(&note).expect("Failed");
+
+        db.delete_note(&note_id).expect("Failed to delete");
+
+        let found = db.find_note_by_title("Deleted Title").expect("Failed");
+        assert!(
+            found.is_none(),
+            "Deleted notes should not be found by title"
+        );
+    }
+
+    #[test]
+    fn test_get_links_for_note() {
+        let (db, _temp) = create_test_db();
+        let note_a = create_test_note("Source");
+        let note_b = create_test_note("Target 1");
+        let note_c = create_test_note("Target 2");
+
+        let id_a = db.create_note(&note_a).expect("Failed");
+        let id_b = db.create_note(&note_b).expect("Failed");
+        let id_c = db.create_note(&note_c).expect("Failed");
+
+        db.create_link(&id_a, &id_b, "reference", Some("link to B"))
+            .expect("Failed");
+        db.create_link(&id_a, &id_c, "wiki", None).expect("Failed");
+
+        let links = db.get_links_for_note(&id_a).expect("Failed to get links");
+        assert_eq!(links.len(), 2);
+
+        let target_titles: Vec<&str> = links.iter().map(|l| l.1.as_str()).collect();
+        assert!(target_titles.contains(&"Target 1"));
+        assert!(target_titles.contains(&"Target 2"));
+    }
+
+    #[test]
+    fn test_get_links_for_note_excludes_deleted_targets() {
+        let (db, _temp) = create_test_db();
+        let note_a = create_test_note("Source");
+        let note_b = create_test_note("Target");
+
+        let id_a = db.create_note(&note_a).expect("Failed");
+        let id_b = db.create_note(&note_b).expect("Failed");
+
+        db.create_link(&id_a, &id_b, "reference", None)
+            .expect("Failed");
+
+        // Delete the target
+        db.delete_note(&id_b).expect("Failed");
+
+        let links = db.get_links_for_note(&id_a).expect("Failed");
+        assert!(links.is_empty(), "Links to deleted notes should not appear");
+    }
+
+    #[test]
+    fn test_get_links_for_note_empty() {
+        let (db, _temp) = create_test_db();
+        let note = create_test_note("No Links");
+        let note_id = db.create_note(&note).expect("Failed");
+
+        let links = db.get_links_for_note(&note_id).expect("Failed");
+        assert!(links.is_empty());
+    }
+
+    #[test]
+    fn test_create_link_idempotent() {
+        let (db, _temp) = create_test_db();
+        let note_a = create_test_note("Source");
+        let note_b = create_test_note("Target");
+
+        let id_a = db.create_note(&note_a).expect("Failed");
+        let id_b = db.create_note(&note_b).expect("Failed");
+
+        // Create the same link twice (INSERT OR IGNORE)
+        db.create_link(&id_a, &id_b, "reference", None)
+            .expect("Failed");
+        db.create_link(&id_a, &id_b, "reference", None)
+            .expect("Failed");
+
+        // Should only have one backlink
+        let backlinks = db.get_backlinks(&id_b).expect("Failed");
+        assert_eq!(backlinks.len(), 1, "Duplicate links should be ignored");
+    }
+
+    #[test]
+    fn test_delete_and_recreate_links() {
+        let (db, _temp) = create_test_db();
+        let note_a = create_test_note("Source");
+        let note_b = create_test_note("Target Old");
+        let note_c = create_test_note("Target New");
+
+        let id_a = db.create_note(&note_a).expect("Failed");
+        let id_b = db.create_note(&note_b).expect("Failed");
+        let id_c = db.create_note(&note_c).expect("Failed");
+
+        // Create link A -> B
+        db.create_link(&id_a, &id_b, "reference", None)
+            .expect("Failed");
+
+        // Delete all links from A (simulating note content change)
+        db.delete_links_for_note(&id_a).expect("Failed");
+
+        // Create new link A -> C
+        db.create_link(&id_a, &id_c, "reference", None)
+            .expect("Failed");
+
+        // B should have no backlinks, C should have one
+        let bl_b = db.get_backlinks(&id_b).expect("Failed");
+        let bl_c = db.get_backlinks(&id_c).expect("Failed");
+        assert!(bl_b.is_empty());
+        assert_eq!(bl_c.len(), 1);
+        assert_eq!(bl_c[0].1, "Source");
     }
 }
