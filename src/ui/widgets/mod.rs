@@ -2,6 +2,7 @@ pub mod backlinks_pane;
 pub mod command;
 pub mod editor_history;
 pub mod editor_state;
+pub mod graph_view;
 pub mod link_autocomplete;
 pub mod metadata_pane;
 pub mod modals;
@@ -13,6 +14,7 @@ pub mod status_bar;
 
 pub use backlinks_pane::BacklinksPane;
 pub use command::{Command, CommandContext, CommandExecutor, CommandParser, CommandResult};
+pub use graph_view::{draw_graph, GraphState};
 pub use metadata_pane::MetadataPane;
 pub use modals::{
     ConfirmationAction, ConfirmationModal, CreateNoteAction, CreateNoteModal, HelpModal,

@@ -447,6 +447,74 @@ impl Database {
         Ok(links)
     }
 
+    /// Get all links in the database (for graph visualization).
+    ///
+    /// Returns a list of (source_id, source_title, target_id, target_title, link_type) tuples.
+    /// Only includes links where both source and target notes are not deleted.
+    pub fn get_all_links(&self) -> ZResult<Vec<(String, String, String, String, String)>> {
+        let conn = self.conn.lock();
+
+        let mut stmt = conn
+            .prepare(
+                "SELECT l.source_id, s.title, l.target_id, t.title, l.link_type
+                 FROM links l
+                 JOIN notes s ON s.id = l.source_id AND s.deleted_at IS NULL
+                 JOIN notes t ON t.id = l.target_id AND t.deleted_at IS NULL
+                 ORDER BY s.title, t.title",
+            )
+            .map_err(ZtlgrError::Database)?;
+
+        let links = stmt
+            .query_map([], |row| {
+                Ok((
+                    row.get::<_, String>(0)?,
+                    row.get::<_, String>(1)?,
+                    row.get::<_, String>(2)?,
+                    row.get::<_, String>(3)?,
+                    row.get::<_, String>(4)?,
+                ))
+            })
+            .map_err(ZtlgrError::Database)?
+            .collect::<std::result::Result<Vec<_>, _>>()
+            .map_err(ZtlgrError::Database)?;
+
+        Ok(links)
+    }
+
+    /// Get all notes with their link counts (for graph visualization).
+    ///
+    /// Returns a list of (note_id, title, note_type, outgoing_count, incoming_count).
+    pub fn get_graph_nodes(&self) -> ZResult<Vec<(String, String, String, usize, usize)>> {
+        let conn = self.conn.lock();
+
+        let mut stmt = conn
+            .prepare(
+                "SELECT n.id, n.title, n.note_type,
+                        (SELECT COUNT(*) FROM links l WHERE l.source_id = n.id) as out_count,
+                        (SELECT COUNT(*) FROM links l WHERE l.target_id = n.id) as in_count
+                 FROM notes n
+                 WHERE n.deleted_at IS NULL
+                 ORDER BY n.title",
+            )
+            .map_err(ZtlgrError::Database)?;
+
+        let nodes = stmt
+            .query_map([], |row| {
+                Ok((
+                    row.get::<_, String>(0)?,
+                    row.get::<_, String>(1)?,
+                    row.get::<_, String>(2)?,
+                    row.get::<_, usize>(3)?,
+                    row.get::<_, usize>(4)?,
+                ))
+            })
+            .map_err(ZtlgrError::Database)?
+            .collect::<std::result::Result<Vec<_>, _>>()
+            .map_err(ZtlgrError::Database)?;
+
+        Ok(nodes)
+    }
+
     pub fn get_path(&self) -> &Path {
         &self.path
     }
@@ -997,5 +1065,254 @@ mod tests {
         assert!(bl_b.is_empty());
         assert_eq!(bl_c.len(), 1);
         assert_eq!(bl_c[0].1, "Source");
+    }
+
+    // ========== get_all_links() tests ==========
+
+    #[test]
+    fn test_get_all_links_empty_db() {
+        let (db, _temp) = create_test_db();
+        let links = db.get_all_links().expect("Failed");
+        assert!(links.is_empty());
+    }
+
+    #[test]
+    fn test_get_all_links_no_links() {
+        let (db, _temp) = create_test_db();
+        let note = create_test_note("Orphan Note");
+        db.create_note(&note).expect("Failed");
+
+        let links = db.get_all_links().expect("Failed");
+        assert!(links.is_empty());
+    }
+
+    #[test]
+    fn test_get_all_links_single_link() {
+        let (db, _temp) = create_test_db();
+        let note_a = create_test_note("Alpha");
+        let note_b = create_test_note("Beta");
+
+        let id_a = db.create_note(&note_a).expect("Failed");
+        let id_b = db.create_note(&note_b).expect("Failed");
+
+        db.create_link(&id_a, &id_b, "reference", None)
+            .expect("Failed");
+
+        let links = db.get_all_links().expect("Failed");
+        assert_eq!(links.len(), 1);
+        assert_eq!(links[0].0, id_a.as_str()); // source_id
+        assert_eq!(links[0].1, "Alpha"); // source_title
+        assert_eq!(links[0].2, id_b.as_str()); // target_id
+        assert_eq!(links[0].3, "Beta"); // target_title
+        assert_eq!(links[0].4, "reference"); // link_type
+    }
+
+    #[test]
+    fn test_get_all_links_multiple_links() {
+        let (db, _temp) = create_test_db();
+        let note_a = create_test_note("Alpha");
+        let note_b = create_test_note("Beta");
+        let note_c = create_test_note("Gamma");
+
+        let id_a = db.create_note(&note_a).expect("Failed");
+        let id_b = db.create_note(&note_b).expect("Failed");
+        let id_c = db.create_note(&note_c).expect("Failed");
+
+        db.create_link(&id_a, &id_b, "reference", None)
+            .expect("Failed");
+        db.create_link(&id_a, &id_c, "reference", None)
+            .expect("Failed");
+        db.create_link(&id_b, &id_c, "embed", None).expect("Failed");
+
+        let links = db.get_all_links().expect("Failed");
+        assert_eq!(links.len(), 3);
+    }
+
+    #[test]
+    fn test_get_all_links_excludes_deleted_source() {
+        let (db, _temp) = create_test_db();
+        let note_a = create_test_note("Source");
+        let note_b = create_test_note("Target");
+
+        let id_a = db.create_note(&note_a).expect("Failed");
+        let id_b = db.create_note(&note_b).expect("Failed");
+
+        db.create_link(&id_a, &id_b, "reference", None)
+            .expect("Failed");
+
+        // Delete the source note
+        db.delete_note(&id_a).expect("Failed");
+
+        let links = db.get_all_links().expect("Failed");
+        assert!(
+            links.is_empty(),
+            "Links from deleted sources should be excluded"
+        );
+    }
+
+    #[test]
+    fn test_get_all_links_excludes_deleted_target() {
+        let (db, _temp) = create_test_db();
+        let note_a = create_test_note("Source");
+        let note_b = create_test_note("Target");
+
+        let id_a = db.create_note(&note_a).expect("Failed");
+        let id_b = db.create_note(&note_b).expect("Failed");
+
+        db.create_link(&id_a, &id_b, "reference", None)
+            .expect("Failed");
+
+        // Delete the target note
+        db.delete_note(&id_b).expect("Failed");
+
+        let links = db.get_all_links().expect("Failed");
+        assert!(
+            links.is_empty(),
+            "Links to deleted targets should be excluded"
+        );
+    }
+
+    #[test]
+    fn test_get_all_links_ordered_by_title() {
+        let (db, _temp) = create_test_db();
+        let note_z = create_test_note("Zulu");
+        let note_a = create_test_note("Alpha");
+        let note_m = create_test_note("Mike");
+
+        let id_z = db.create_note(&note_z).expect("Failed");
+        let id_a = db.create_note(&note_a).expect("Failed");
+        let id_m = db.create_note(&note_m).expect("Failed");
+
+        // Links: Zulu->Mike, Alpha->Mike
+        db.create_link(&id_z, &id_m, "reference", None)
+            .expect("Failed");
+        db.create_link(&id_a, &id_m, "reference", None)
+            .expect("Failed");
+
+        let links = db.get_all_links().expect("Failed");
+        assert_eq!(links.len(), 2);
+        // ORDER BY s.title, t.title → Alpha first, then Zulu
+        assert_eq!(links[0].1, "Alpha");
+        assert_eq!(links[1].1, "Zulu");
+    }
+
+    // ========== get_graph_nodes() tests ==========
+
+    #[test]
+    fn test_get_graph_nodes_empty_db() {
+        let (db, _temp) = create_test_db();
+        let nodes = db.get_graph_nodes().expect("Failed");
+        assert!(nodes.is_empty());
+    }
+
+    #[test]
+    fn test_get_graph_nodes_single_note_no_links() {
+        let (db, _temp) = create_test_db();
+        let note = create_test_note("Solo Note");
+        db.create_note(&note).expect("Failed");
+
+        let nodes = db.get_graph_nodes().expect("Failed");
+        assert_eq!(nodes.len(), 1);
+        assert_eq!(nodes[0].1, "Solo Note"); // title
+        assert_eq!(nodes[0].2, "permanent"); // note_type (create_test_note uses Permanent)
+        assert_eq!(nodes[0].3, 0); // outgoing_count
+        assert_eq!(nodes[0].4, 0); // incoming_count
+    }
+
+    #[test]
+    fn test_get_graph_nodes_with_links_counts() {
+        let (db, _temp) = create_test_db();
+        let note_a = create_test_note("Hub");
+        let note_b = create_test_note("Spoke One");
+        let note_c = create_test_note("Spoke Two");
+
+        let id_a = db.create_note(&note_a).expect("Failed");
+        let id_b = db.create_note(&note_b).expect("Failed");
+        let id_c = db.create_note(&note_c).expect("Failed");
+
+        // Hub links to both spokes
+        db.create_link(&id_a, &id_b, "reference", None)
+            .expect("Failed");
+        db.create_link(&id_a, &id_c, "reference", None)
+            .expect("Failed");
+
+        let nodes = db.get_graph_nodes().expect("Failed");
+        assert_eq!(nodes.len(), 3);
+
+        // Nodes ordered by title: Hub, Spoke One, Spoke Two
+        let hub = nodes.iter().find(|n| n.1 == "Hub").expect("Hub not found");
+        let spoke1 = nodes
+            .iter()
+            .find(|n| n.1 == "Spoke One")
+            .expect("Spoke One not found");
+        let spoke2 = nodes
+            .iter()
+            .find(|n| n.1 == "Spoke Two")
+            .expect("Spoke Two not found");
+
+        assert_eq!(hub.3, 2); // outgoing: 2
+        assert_eq!(hub.4, 0); // incoming: 0
+        assert_eq!(spoke1.3, 0); // outgoing: 0
+        assert_eq!(spoke1.4, 1); // incoming: 1
+        assert_eq!(spoke2.3, 0); // outgoing: 0
+        assert_eq!(spoke2.4, 1); // incoming: 1
+    }
+
+    #[test]
+    fn test_get_graph_nodes_excludes_deleted() {
+        let (db, _temp) = create_test_db();
+        let note_a = create_test_note("Alive");
+        let note_b = create_test_note("Dead");
+
+        let _id_a = db.create_note(&note_a).expect("Failed");
+        let id_b = db.create_note(&note_b).expect("Failed");
+
+        db.delete_note(&id_b).expect("Failed");
+
+        let nodes = db.get_graph_nodes().expect("Failed");
+        assert_eq!(nodes.len(), 1);
+        assert_eq!(nodes[0].1, "Alive");
+    }
+
+    #[test]
+    fn test_get_graph_nodes_bidirectional_links() {
+        let (db, _temp) = create_test_db();
+        let note_a = create_test_note("Alpha");
+        let note_b = create_test_note("Beta");
+
+        let id_a = db.create_note(&note_a).expect("Failed");
+        let id_b = db.create_note(&note_b).expect("Failed");
+
+        // Bidirectional: A->B and B->A
+        db.create_link(&id_a, &id_b, "reference", None)
+            .expect("Failed");
+        db.create_link(&id_b, &id_a, "reference", None)
+            .expect("Failed");
+
+        let nodes = db.get_graph_nodes().expect("Failed");
+        let alpha = nodes
+            .iter()
+            .find(|n| n.1 == "Alpha")
+            .expect("Alpha not found");
+        let beta = nodes
+            .iter()
+            .find(|n| n.1 == "Beta")
+            .expect("Beta not found");
+
+        assert_eq!(alpha.3, 1); // outgoing: 1
+        assert_eq!(alpha.4, 1); // incoming: 1
+        assert_eq!(beta.3, 1); // outgoing: 1
+        assert_eq!(beta.4, 1); // incoming: 1
+    }
+
+    #[test]
+    fn test_get_graph_nodes_returns_note_id() {
+        let (db, _temp) = create_test_db();
+        let note = create_test_note("Check ID");
+        let note_id = db.create_note(&note).expect("Failed");
+
+        let nodes = db.get_graph_nodes().expect("Failed");
+        assert_eq!(nodes.len(), 1);
+        assert_eq!(nodes[0].0, note_id.as_str()); // id matches
     }
 }

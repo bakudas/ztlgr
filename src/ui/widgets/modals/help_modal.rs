@@ -216,6 +216,52 @@ impl HelpModal {
         ]));
         lines.push(Line::from(""));
 
+        // Graph Mode
+        lines.push(Line::from(Span::styled("Graph Mode", heading_style)));
+        lines.push(Line::from(vec![
+            Span::styled("v        ", key_style),
+            Span::styled("  Enter graph mode", fg_style),
+        ]));
+        lines.push(Line::from(vec![
+            Span::styled("h/j/k/l  ", key_style),
+            Span::styled("or ", dim_style),
+            Span::styled("←↓↑→    ", key_style),
+            Span::styled("  Pan view", fg_style),
+        ]));
+        lines.push(Line::from(vec![
+            Span::styled("+/=      ", key_style),
+            Span::styled("  Zoom in", fg_style),
+        ]));
+        lines.push(Line::from(vec![
+            Span::styled("-        ", key_style),
+            Span::styled("  Zoom out", fg_style),
+        ]));
+        lines.push(Line::from(vec![
+            Span::styled("Tab      ", key_style),
+            Span::styled("  Select next node", fg_style),
+        ]));
+        lines.push(Line::from(vec![
+            Span::styled("Shift+Tab", key_style),
+            Span::styled("  Select prev node", fg_style),
+        ]));
+        lines.push(Line::from(vec![
+            Span::styled("Enter    ", key_style),
+            Span::styled("  Open selected note", fg_style),
+        ]));
+        lines.push(Line::from(vec![
+            Span::styled("c        ", key_style),
+            Span::styled("  Center on selected node", fg_style),
+        ]));
+        lines.push(Line::from(vec![
+            Span::styled("f        ", key_style),
+            Span::styled("  Fit entire graph in view", fg_style),
+        ]));
+        lines.push(Line::from(vec![
+            Span::styled("q/Esc    ", key_style),
+            Span::styled("  Exit graph mode", fg_style),
+        ]));
+        lines.push(Line::from(""));
+
         // CLI Commands
         lines.push(Line::from(Span::styled("CLI Commands", heading_style)));
         lines.push(Line::from(vec![
@@ -438,6 +484,7 @@ mod tests {
         assert!(text.contains("Normal Mode"));
         assert!(text.contains("Insert Mode"));
         assert!(text.contains("Global"));
+        assert!(text.contains("Graph Mode"));
         assert!(text.contains("CLI Commands"));
         assert!(text.contains("Credits"));
         assert!(text.contains("@bakudas"));

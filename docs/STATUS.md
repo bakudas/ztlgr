@@ -1,9 +1,9 @@
 # Status do Projeto ztlgr
 
 **Data Atualização:** 7 de Abril de 2026  
-**Versão:** 0.4.0 (Inter-note Links Integration)  
+**Versão:** 0.5.0 (Knowledge Graph Visualization)  
 **Status Geral:** 🟢 ACTIVE DEVELOPMENT  
-**Testes:** 372 passing (100% success rate)
+**Testes:** 423 passing (100% success rate)
 
 ---
 
@@ -16,10 +16,61 @@
 - ✅ **CLI Interface**: 100% (new, open, search, import, sync)
 - ✅ **Markdown Preview**: 100% (blockquotes, tables, task lists, footnotes, images, wiki-links)
 - ✅ **Inter-note Links**: 100% (backlinks pane, link following, navigation history, autocomplete, extract & store)
+- ✅ **Knowledge Graph**: 100% (force-directed layout, Canvas rendering, pan/zoom, node selection, navigation)
 
 ---
 
-## 🚀 LATEST RELEASE: v0.4.0
+## 🚀 LATEST RELEASE: v0.5.0
+
+**Release Date:** April 7, 2026  
+**Release Tag:** v0.5.0
+
+**What's New in v0.5.0:**
+
+### ✨ Knowledge Graph Visualization
+
+Interactive visual graph of note connections using ratatui Canvas with Braille markers:
+
+- **Graph Module** (`src/graph/`):
+  - `types.rs` — `GraphNode`, `GraphEdge`, `GraphData` with `from_db()` builder (11 tests)
+  - `layout.rs` — Fruchterman-Reingold force-directed layout algorithm with centering and bounding box (11 tests)
+
+- **Database Layer** (2 new methods + 13 tests):
+  - `get_all_links()` — All edges where both endpoints are non-deleted
+  - `get_graph_nodes()` — All non-deleted notes with outgoing/incoming link counts
+
+- **GraphView Widget** (`src/ui/widgets/graph_view.rs`):
+  - `GraphState` — Pan, zoom, node selection, fit-to-view
+  - `draw_graph()` — Canvas-based rendering with edges (lines), nodes (circles), labels (text)
+  - Node color by type (daily/fleeting/literature/permanent/reference/index), selected node highlighted
+  - Node size scales with degree (number of connections)
+  - Empty state message when no notes exist (16 tests)
+
+- **Graph Mode** (`v` to enter, `q`/`Esc` to exit):
+  - `h/j/k/l` or arrow keys: pan view
+  - `+`/`=`: zoom in, `-`: zoom out
+  - `Tab`/`Shift+Tab`: cycle through nodes (auto-centers)
+  - `Enter`: navigate to selected note (exits graph mode)
+  - `c`: center on selected node
+  - `f`: fit entire graph in view
+  - Sidebar remains visible for context
+
+- **Help Modal Updated** with Graph Mode keybindings section
+
+### 🔧 Technical Changes
+
+- Bumped version from 0.4.0 to 0.5.0
+- 423 tests passing (+51 new tests, up from 372)
+- New `src/graph/` module: `types.rs`, `layout.rs`, `mod.rs`
+- New `src/ui/widgets/graph_view.rs` widget
+- `draw()` in `app.rs` now branches between normal layout and graph layout
+- `handle_graph_mode()` expanded from 3 lines to full keybinding handler
+- `enter_graph_mode()` loads data from DB, runs layout, creates `GraphState`
+- Zero clippy warnings
+
+---
+
+## 🚀 PREVIOUS RELEASE: v0.4.0
 
 **Release Date:** April 7, 2026  
 **Release Tag:** v0.4.0
@@ -147,6 +198,14 @@ Comprehensive help system accessible via `?` or `:help`:
 
 ## ✅ Completed Features
 
+### ✅ Knowledge Graph Visualization (v0.5.0)
+- ✅ **Graph Data Layer** - `get_all_links()`, `get_graph_nodes()` DB methods (13 tests)
+- ✅ **Graph Types** - `GraphNode`, `GraphEdge`, `GraphData` with `from_db()` builder (11 tests)
+- ✅ **Force-Directed Layout** - Fruchterman-Reingold algorithm with centering (11 tests)
+- ✅ **GraphView Widget** - Canvas-based rendering with Braille markers (16 tests)
+- ✅ **Graph Mode** - Full keybindings: pan, zoom, select, navigate, center, fit
+- ✅ **Help Modal** - Graph Mode keybindings section added
+
 ### ✅ Inter-note Links Integration (v0.4.0)
 - ✅ **DB Methods** - `get_backlinks()`, `delete_links_for_note()`, `find_note_by_title()`, `get_links_for_note()` (15 tests)
 - ✅ **Link Following** - Detect link at cursor, resolve by title/ID, navigate (`Enter`/`Ctrl+O`)
@@ -268,13 +327,11 @@ Comprehensive help system accessible via `?` or `:help`:
 
 ## 🟠 PRÓXIMOS PASSOS
 
-### Sprint Atual: Knowledge Graph Visualization (Phase 3)
+### Sprint Atual: Graph Enhancements & Quality of Life
 
-- [ ] Design graph layout algorithm (force-directed or hierarchical)
-- [ ] Implement ASCII/Unicode graph rendering in TUI
-- [ ] Wire `Mode::Graph` with navigation (zoom, pan, select node)
-- [ ] Show note connections from `links` table
 - [ ] Graph filtering by note type, tags, or link depth
+- [ ] Graph zoom-to-fit on window resize
+- [ ] Graph hover/tooltip showing note metadata
 
 ### Futuro:
 
@@ -342,6 +399,10 @@ ztlgr sync --vault ~/my-notes --force
 │  │          │              ├──────────────────┤ │
 │  │          │              │   Backlinks (B)  │ │
 │  └──────────┴──────────────┴──────────────────┘ │
+│  ┌──────────┬─────────────────────────────────┐ │
+│  │ Sidebar  │  Graph View (v) — Canvas/Braille│ │
+│  │ (Notes)  │  Force-directed layout          │ │
+│  └──────────┴─────────────────────────────────┘ │
 └─────────────────────────────────────────────────┘
                  ▲
                  │
@@ -379,5 +440,5 @@ ztlgr sync --vault ~/my-notes --force
 
 ---
 
-**Status**: 🟢 v0.4.0 Released - Inter-note Links Complete  
-**Próximo**: Knowledge graph visualization, graph navigation, graph filtering.
+**Status**: 🟢 v0.5.0 Released - Knowledge Graph Visualization Complete  
+**Próximo**: Graph enhancements (filtering, zoom-to-fit, tooltips).

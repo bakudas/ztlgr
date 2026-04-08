@@ -7,6 +7,44 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.5.0] - 2026-04-07
+
+### Added
+- **Knowledge Graph Visualization**
+  - New `src/graph/` module with `types.rs` (GraphNode, GraphEdge, GraphData) and `layout.rs` (Fruchterman-Reingold force-directed algorithm)
+  - Database methods: `get_all_links()` and `get_graph_nodes()` for graph data retrieval (+13 tests)
+  - `GraphView` widget using ratatui Canvas with Braille markers for high-resolution rendering
+  - `GraphState` with pan, zoom, node selection, fit-to-view, and center-on-selected
+  - Graph mode (`v` to enter): sidebar + full-area graph view replaces editor/preview
+  - Node colors by note type (daily, fleeting, literature, permanent, reference, index)
+  - Node size scales with degree (number of connections)
+  - Edge rendering as lines between connected nodes
+  - Labels rendered above nodes (configurable via `graph.show_labels`)
+
+- **Graph Mode Keybindings**
+  - `h/j/k/l` or arrow keys: pan view
+  - `+`/`=`: zoom in, `-`: zoom out
+  - `Tab`/`Shift+Tab`: cycle through nodes (auto-centers on selection)
+  - `Enter`: navigate to selected note and exit graph mode
+  - `c`: center view on selected node
+  - `f`: fit entire graph in view
+  - `q`/`Esc`: exit graph mode
+
+- **Help Modal Updates**
+  - New Graph Mode section documenting all graph keybindings
+
+### Changed
+- `draw()` method branches between normal layout and graph layout based on mode
+- `handle_graph_mode()` expanded from 3-line stub to full keybinding handler
+- Added `enter_graph_mode()` method that loads data from DB, runs layout algorithm, and creates `GraphState`
+
+### Technical
+- New module: `src/graph/` (mod.rs, types.rs, layout.rs) — 22 tests
+- New widget: `src/ui/widgets/graph_view.rs` — 16 tests
+- Database tests for graph methods: 13 tests
+- Test count: 423 passing (from 372, +51 new tests)
+- Zero clippy warnings
+
 ## [0.4.0] - 2026-04-07
 
 ### Added
@@ -229,5 +267,5 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - No known vulnerabilities
 
 ### Known Limitations
-- Graph visualization planned for future release (Mode::Graph scaffolding exists)
+- Graph filtering by note type/tags not yet implemented (planned for future release)
 - Terminal-only (no mobile support)

@@ -16,13 +16,14 @@ use std::sync::Arc;
 use super::widgets::modals::note_type_selector::NoteType as SelectorNoteType;
 use super::widgets::{
     BacklinksPane, Command, CommandContext, CommandExecutor, CommandParser, CommandResult,
-    ConfirmationAction, ConfirmationModal, CreateNoteAction, CreateNoteModal, HelpModal,
-    MetadataPane, NoteEditor, NoteList, NoteTypeAction, NoteTypeSelector, PreviewPane,
+    ConfirmationAction, ConfirmationModal, CreateNoteAction, CreateNoteModal, GraphState,
+    HelpModal, MetadataPane, NoteEditor, NoteList, NoteTypeAction, NoteTypeSelector, PreviewPane,
     SearchResult, SearchState, StatusBar,
 };
 
 use super::link_following::detect_link_at_cursor;
 use super::navigation_history::{NavigationHistory, NavigationPoint};
+use super::widgets::draw_graph;
 
 /// Sanitize filename by removing invalid characters
 fn sanitize_filename(name: &str) -> String {
@@ -91,6 +92,9 @@ pub struct App {
     show_preview: bool,
     show_backlinks: bool,
     running: bool,
+
+    // Graph state
+    graph_state: Option<GraphState>,
 }
 
 #[derive(Debug)]
@@ -139,6 +143,7 @@ impl App {
             show_preview: true,
             show_backlinks: false,
             running: true,
+            graph_state: None,
         };
 
         // Load the first note if available
@@ -200,78 +205,108 @@ impl App {
         let theme = self.config.get_theme();
 
         let sidebar_width = self.config.ui.sidebar_width;
+        let theme_ref: &dyn crate::config::Theme = theme.as_ref();
 
-        let chunks = if self.show_preview {
-            Layout::default()
-                .direction(Direction::Horizontal)
-                .margin(1)
-                .constraints([
-                    Constraint::Length(sidebar_width),
-                    Constraint::Percentage(50),
-                    Constraint::Percentage(50),
-                ])
-                .split(f.size())
-        } else {
-            Layout::default()
+        // Graph mode: sidebar + graph (replaces editor + preview)
+        if self.mode == Mode::Graph {
+            let chunks = Layout::default()
                 .direction(Direction::Horizontal)
                 .margin(1)
                 .constraints([
                     Constraint::Length(sidebar_width),
                     Constraint::Percentage(100),
                 ])
-                .split(f.size())
-        };
+                .split(f.size());
 
-        let theme_ref: &dyn crate::config::Theme = theme.as_ref();
-        self.note_list.draw(
-            f,
-            chunks[0],
-            &self.notes,
-            theme_ref,
-            self.selected_note.as_deref(),
-            self.focused_panel == Panel::NoteList,
-        );
-        self.note_editor.draw(
-            f,
-            chunks[1],
-            theme_ref,
-            self.mode,
-            self.focused_panel == Panel::Editor,
-            &self.db,
-        );
+            self.note_list.draw(
+                f,
+                chunks[0],
+                &self.notes,
+                theme_ref,
+                self.selected_note.as_deref(),
+                false,
+            );
 
-        if self.show_preview {
-            match self.right_panel {
-                RightPanel::Preview => {
-                    if self.show_backlinks {
-                        // Split right panel: 70% preview, 30% backlinks footer
-                        let right_chunks = Layout::default()
-                            .direction(Direction::Vertical)
-                            .constraints([Constraint::Percentage(70), Constraint::Percentage(30)])
-                            .split(chunks[2]);
+            if let Some(ref gs) = self.graph_state {
+                let show_labels = self.config.graph.show_labels;
+                draw_graph(f, chunks[1], gs, theme_ref, show_labels);
+            }
+        } else {
+            // Normal layout: sidebar + editor + optional preview
+            let chunks = if self.show_preview {
+                Layout::default()
+                    .direction(Direction::Horizontal)
+                    .margin(1)
+                    .constraints([
+                        Constraint::Length(sidebar_width),
+                        Constraint::Percentage(50),
+                        Constraint::Percentage(50),
+                    ])
+                    .split(f.size())
+            } else {
+                Layout::default()
+                    .direction(Direction::Horizontal)
+                    .margin(1)
+                    .constraints([
+                        Constraint::Length(sidebar_width),
+                        Constraint::Percentage(100),
+                    ])
+                    .split(f.size())
+            };
 
-                        self.preview_pane.draw(
-                            f,
-                            right_chunks[0],
-                            theme_ref,
-                            self.focused_panel == Panel::Right,
-                        );
-                        self.backlinks_pane.draw(f, right_chunks[1], theme_ref);
-                    } else {
-                        self.preview_pane.draw(
-                            f,
-                            chunks[2],
-                            theme_ref,
-                            self.focused_panel == Panel::Right,
-                        );
+            self.note_list.draw(
+                f,
+                chunks[0],
+                &self.notes,
+                theme_ref,
+                self.selected_note.as_deref(),
+                self.focused_panel == Panel::NoteList,
+            );
+            self.note_editor.draw(
+                f,
+                chunks[1],
+                theme_ref,
+                self.mode,
+                self.focused_panel == Panel::Editor,
+                &self.db,
+            );
+
+            if self.show_preview {
+                match self.right_panel {
+                    RightPanel::Preview => {
+                        if self.show_backlinks {
+                            // Split right panel: 70% preview, 30% backlinks footer
+                            let right_chunks = Layout::default()
+                                .direction(Direction::Vertical)
+                                .constraints([
+                                    Constraint::Percentage(70),
+                                    Constraint::Percentage(30),
+                                ])
+                                .split(chunks[2]);
+
+                            self.preview_pane.draw(
+                                f,
+                                right_chunks[0],
+                                theme_ref,
+                                self.focused_panel == Panel::Right,
+                            );
+                            self.backlinks_pane.draw(f, right_chunks[1], theme_ref);
+                        } else {
+                            self.preview_pane.draw(
+                                f,
+                                chunks[2],
+                                theme_ref,
+                                self.focused_panel == Panel::Right,
+                            );
+                        }
                     }
+                    RightPanel::Metadata => self.metadata_pane.draw(
+                        f,
+                        chunks[2],
+                        theme_ref,
+                        self.focused_panel == Panel::Right,
+                    ),
                 }
-                RightPanel::Metadata => self.metadata_pane.draw(
-                    f,
-                    chunks[2],
-                    theme_ref,
-                    self.focused_panel == Panel::Right,
-                ),
             }
         }
 
@@ -489,7 +524,7 @@ impl App {
             }
             KeyCode::Char('/') => self.mode = Mode::Search,
             KeyCode::Char(':') => self.mode = Mode::Command,
-            KeyCode::Char('v') => self.mode = Mode::Graph,
+            KeyCode::Char('v') => self.enter_graph_mode(),
 
             KeyCode::Enter => self.follow_link(),
             KeyCode::Char('o') => {
@@ -819,8 +854,122 @@ impl App {
 
     fn handle_graph_mode(&mut self, key: KeyEvent) {
         match key.code {
-            KeyCode::Char('q') | KeyCode::Esc => self.mode = Mode::Normal,
+            KeyCode::Char('q') | KeyCode::Esc => {
+                self.mode = Mode::Normal;
+                self.graph_state = None;
+            }
+
+            // Pan: arrow keys and h/j/k/l
+            KeyCode::Left | KeyCode::Char('h') => {
+                if let Some(ref mut gs) = self.graph_state {
+                    gs.pan(-1.0, 0.0);
+                }
+            }
+            KeyCode::Right | KeyCode::Char('l') => {
+                if let Some(ref mut gs) = self.graph_state {
+                    gs.pan(1.0, 0.0);
+                }
+            }
+            KeyCode::Up | KeyCode::Char('k') => {
+                if let Some(ref mut gs) = self.graph_state {
+                    gs.pan(0.0, 1.0);
+                }
+            }
+            KeyCode::Down | KeyCode::Char('j') => {
+                if let Some(ref mut gs) = self.graph_state {
+                    gs.pan(0.0, -1.0);
+                }
+            }
+
+            // Zoom
+            KeyCode::Char('+') | KeyCode::Char('=') => {
+                if let Some(ref mut gs) = self.graph_state {
+                    gs.zoom_in();
+                }
+            }
+            KeyCode::Char('-') => {
+                if let Some(ref mut gs) = self.graph_state {
+                    gs.zoom_out();
+                }
+            }
+
+            // Node selection: Tab / Shift+Tab
+            KeyCode::Tab => {
+                if let Some(ref mut gs) = self.graph_state {
+                    gs.select_next();
+                    gs.center_on_selected();
+                }
+            }
+            KeyCode::BackTab => {
+                if let Some(ref mut gs) = self.graph_state {
+                    gs.select_prev();
+                    gs.center_on_selected();
+                }
+            }
+
+            // Navigate to selected note
+            KeyCode::Enter => {
+                if let Some(ref gs) = self.graph_state {
+                    if let Some(note_id) = gs.selected_note_id() {
+                        let note_id = note_id.to_string();
+                        self.selected_note = Some(note_id);
+                        self.load_note();
+                        self.mode = Mode::Normal;
+                        self.graph_state = None;
+                    }
+                }
+            }
+
+            // Center on current note
+            KeyCode::Char('c') => {
+                if let Some(ref mut gs) = self.graph_state {
+                    gs.center_on_selected();
+                }
+            }
+
+            // Fit entire graph in view
+            KeyCode::Char('f') => {
+                if let Some(ref mut gs) = self.graph_state {
+                    gs.fit_to_view();
+                }
+            }
+
             _ => {}
+        }
+    }
+
+    /// Enter graph mode: load graph data from DB, run layout, and switch mode.
+    fn enter_graph_mode(&mut self) {
+        use crate::graph::{force_directed_layout, GraphData, LayoutConfig};
+
+        match (self.db.get_graph_nodes(), self.db.get_all_links()) {
+            (Ok(raw_nodes), Ok(raw_edges)) => {
+                let mut data = GraphData::from_db(raw_nodes, raw_edges);
+
+                // Run force-directed layout
+                let config = LayoutConfig::default();
+                force_directed_layout(&mut data, &config);
+
+                // Create graph state centered on current note
+                let mut gs = GraphState::new(data, self.selected_note.clone());
+                if gs.selected_node.is_none() && !gs.data.is_empty() {
+                    gs.fit_to_view();
+                }
+
+                let node_count = gs.data.node_count();
+                let edge_count = gs.data.edge_count();
+
+                self.graph_state = Some(gs);
+                self.mode = Mode::Graph;
+                self.status_bar.set_message(&format!(
+                    "Graph: {} nodes, {} edges. Tab/Shift+Tab: select, Enter: open, f: fit, q: quit",
+                    node_count, edge_count
+                ));
+            }
+            (Err(e), _) | (_, Err(e)) => {
+                self.status_bar
+                    .set_message(&format!("Failed to load graph: {}", e));
+            }
         }
     }
 
