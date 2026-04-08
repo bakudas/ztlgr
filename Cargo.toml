@@ -34,7 +34,7 @@ chrono = { version = "0.4", features = ["serde"] }
 uuid = { version = "1.6", features = ["v4", "serde"] }
 
 # Markdown parsing
-pulldown-cmark = "0.9"
+pulldown-cmark = "0.13"
 
 # Regex
 regex = "1.10"

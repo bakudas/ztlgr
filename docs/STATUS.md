@@ -1,9 +1,9 @@
 # Status do Projeto ztlgr
 
-**Data Atualização:** 5 de Abril de 2026  
-**Versão:** 0.3.0 (Vim Editor + Help Modal 🎉)  
+**Data Atualização:** 7 de Abril de 2026  
+**Versão:** 0.3.1 (Full Markdown Preview)  
 **Status Geral:** 🟢 ACTIVE DEVELOPMENT  
-**Testes:** 279 passing (100% success rate)
+**Testes:** 337 passing (100% success rate)
 
 ---
 
@@ -14,11 +14,44 @@
 - ✅ **Core Features**: 100% (editor, search, command, modals)
 - ✅ **Link System**: 100% (parsing + validation + highlighting + autocomplete + following + backlinks)
 - ✅ **CLI Interface**: 100% (new, open, search, import, sync)
-- ✅ **Distribution**: 100% (CI/CD, release workflow, documentation)
+- ✅ **Markdown Preview**: 100% (blockquotes, tables, task lists, footnotes, images, wiki-links)
 
 ---
 
-## 🚀 LATEST RELEASE: v0.3.0
+## 🚀 LATEST RELEASE: v0.3.1
+
+**Release Date:** April 7, 2026  
+**Release Tag:** v0.3.1
+
+**What's New in v0.3.1:**
+
+### ✨ Full Markdown Preview
+
+Complete rewrite of the preview pane with full markdown support:
+- **Upgrade**: `pulldown-cmark` 0.9 → 0.13.3 (all GFM extensions)
+- **Blockquotes**: Nested levels with colored `│` prefix (up to 5 levels)
+- **Tables**: Unicode borders (`│├┼┤`), column alignment (left/center/right), bold headers
+- **Task Lists**: `[x]` (green) / `[ ]` (gray) checkbox rendering
+- **Strikethrough**: `~~text~~` with crossed-out styling
+- **Footnotes**: `[^ref]` inline references + `[^ref]: text` definitions
+- **Images**: Placeholder `[IMG: alt text]` with URL display
+- **Wiki-links**: `[[target]]` and `[[target|label]]` rendered with `[[]]` brackets
+- **Code Blocks**: Box-drawing borders `┌─ lang ─` / `│ code` / `└───`
+- **Nested Lists**: Indentation + alternating bullets (`•` `◦` `▸`)
+- **Word Wrap**: Word-boundary aware wrapping (replaces character-level)
+- **Headings**: `#`/`##`/`###` prefix indicators, H1 with background highlight
+- **Smart Punctuation**: `--` → `—`, `"quotes"` → `"quotes"`
+
+### 🔧 Technical Changes
+
+- Upgraded `pulldown-cmark` from 0.9.6 to 0.13.3
+- Rewrote `preview_pane.rs`: 351 → 1581 lines (complete rewrite)
+- 337 tests passing (+58 new preview tests, up from 279)
+- Zero clippy warnings
+
+---
+
+## 🚀 PREVIOUS RELEASE: v0.3.0
 
 **Release Date:** April 5, 2026  
 **Release Tag:** v0.3.0
@@ -59,6 +92,20 @@ Comprehensive help system accessible via `?` or `:help`:
 ---
 
 ## ✅ Completed Features
+
+### ✅ Full Markdown Preview (v0.3.1)
+- ✅ **Blockquotes** - Nested levels (up to 5), colored `│` prefix
+- ✅ **Tables** - Unicode borders, alignment, bold headers
+- ✅ **Task Lists** - `[x]`/`[ ]` checkbox rendering
+- ✅ **Strikethrough** - `~~text~~` crossed-out
+- ✅ **Footnotes** - Inline refs + definitions
+- ✅ **Images** - `[IMG: alt]` placeholder
+- ✅ **Wiki-links** - `[[target]]` / `[[target|label]]`
+- ✅ **Code Blocks** - Box-drawing borders + gutter
+- ✅ **Nested Lists** - Indentation + alternating bullets
+- ✅ **Word Wrap** - Word-boundary aware
+- ✅ **Headings** - `#` prefix indicators, H1 bg highlight
+- ✅ **Smart Punctuation** - Ligatures and smart quotes
 
 ### ✅ Vim Editor Layer (v0.3.0)
 - ✅ **Navigation** - `h/j/k/l`, arrows, `w/b`, `0/$`, `g/G`
@@ -141,7 +188,7 @@ Comprehensive help system accessible via `?` or `:help`:
 - ✅ **Help Modal** - All keybindings + CLI commands + credits (6 tests)
 - ✅ **Soft Delete** - 7-day trash retention + recovery
 - ✅ **Metadata Panel** - View/edit note properties
-- ✅ **Markdown Preview** - Rendered preview pane
+- ✅ **Markdown Preview** - Full GFM rendering (tables, blockquotes, task lists, footnotes, wiki-links, 58 tests)
 - ✅ **UI/UX Polish** - Focus indicators, mode colors, theme consistency
 
 ### ✅ Infrastructure (v0.1.x)
@@ -157,9 +204,16 @@ Comprehensive help system accessible via `?` or `:help`:
 
 ## 🟠 PRÓXIMOS PASSOS
 
-### Semana 3-4: Advanced Features
+### Sprint Atual: Inter-note Links + Knowledge Graph
 
+- [ ] Integrate backlinks pane into app (Ctrl+B toggle)
+- [ ] Integrate link autocomplete into editor (trigger on `[[`)
+- [ ] Implement link following (Ctrl+] forward, Ctrl+[ back)
+- [ ] Wire navigation history into app
 - [ ] Graph visualization (ASCII art knowledge graph)
+
+### Futuro:
+
 - [ ] Search filters (by type/tags/status/date)
 - [ ] Advanced CLI commands (`ztlgr note create`, `ztlgr export`)
 - [ ] Notifications/toasts in TUI
@@ -259,5 +313,5 @@ ztlgr sync --vault ~/my-notes --force
 
 ---
 
-**Status**: 🟢 CLI Complete - Ready for v0.2.0 release!  
-**Próximo**: Graph visualization, search filters, advanced commands.
+**Status**: 🟢 Full Markdown Preview Complete - Starting Inter-note Links  
+**Próximo**: Backlinks integration, link following, knowledge graph.
