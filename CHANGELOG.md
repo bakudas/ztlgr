@@ -7,14 +7,64 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.4.0] - 2026-04-07
+
 ### Added
-- Comprehensive installation guide (INSTALL.md)
-- Release process documentation (docs/RELEASE.md)
-- Continuous Integration workflow (CI)
-- Automated release workflow with GitHub Actions
-- Support for multiple platforms (Linux, macOS, Windows)
-- Binary checksums for verification
-- Automatic crates.io publishing
+- **Inter-note Links Integration**
+  - Database methods: `get_backlinks()`, `delete_links_for_note()`, `find_note_by_title()`, `get_links_for_note()` (+15 tests)
+  - Link following: `Enter` to follow link under cursor (wiki/markdown format), resolves by title or ID
+  - Navigation history: `Ctrl+O` to go back, LIFO stack with max 50 entries
+  - Backlinks pane: `B` to toggle, shown as footer in preview panel (70/30 split)
+  - Link autocomplete: `[[` triggers suggestions, `Tab`/`Enter` accepts, `Up`/`Down` navigates
+  - Auto extract & store links on every note save, keeping the link graph in sync
+  - Editor cursor context: `get_current_line()` and `cursor_col()` for link detection
+
+- **Help Modal Updates**
+  - Link navigation keybindings documented (Enter, Ctrl+O)
+  - Autocomplete instructions (`[[` to trigger, Tab/Enter to accept)
+  - Backlinks toggle (B key)
+
+### Fixed
+- **Autocomplete inserted UUID instead of note title** - now correctly inserts `[[Note Title]]`
+- **Autocomplete left duplicate `[[` brackets** - now deletes the opening `[[` before inserting the full link
+- **Link following keybindings unreachable** - `Ctrl+]`/`Ctrl+[` are impossible in standard terminals (Ctrl+[ = ESC). Replaced with `Enter`/`Ctrl+O` (Vim convention)
+- **Link following only worked in NoteList panel** - now works in Editor normal mode where the cursor sits on links
+- **Backlinks replaced entire preview** - moved from separate panel mode to preview footer
+
+### Changed
+- Removed `RightPanel::Backlinks` variant; backlinks now overlay the preview as a footer
+- Link keybindings: `Enter` (follow), `Ctrl+O` (back) replace impossible `Ctrl+]`/`Ctrl+[`
+
+### Technical
+- Declared orphaned modules (`link_following`, `navigation_history`) in `ui/mod.rs`
+- Removed blanket `#![allow(dead_code)]` from `backlinks_pane.rs` and `link_autocomplete.rs`
+- Cleaned up unused imports in `widgets/mod.rs`
+- Test count: 372 passing (from 337)
+
+## [0.3.1] - 2026-04-07
+
+### Added
+- **Full Markdown Preview** (complete rewrite of preview pane)
+  - Blockquotes: Nested levels (up to 5) with colored `│` prefix
+  - Tables: Unicode borders (`│├┼┤`), column alignment (left/center/right), bold headers
+  - Task lists: `[x]` (green) / `[ ]` (gray) checkbox rendering
+  - Strikethrough: `~~text~~` with crossed-out styling
+  - Footnotes: `[^ref]` inline references + `[^ref]: text` definitions
+  - Images: Placeholder `[IMG: alt text]` with URL display
+  - Wiki-links: `[[target]]` and `[[target|label]]` rendered with brackets
+  - Code blocks: Box-drawing borders `┌─ lang ─` / `│ code` / `└───`
+  - Nested lists: Indentation + alternating bullets (`•` `◦` `▸`)
+  - Word wrap: Word-boundary aware (replaces character-level)
+  - Headings: `#`/`##`/`###` prefix indicators, H1 with background highlight
+  - Smart punctuation: `--` to em-dash, smart quotes
+
+### Changed
+- Upgraded `pulldown-cmark` from 0.9.6 to 0.13.3 (all GFM extensions)
+- Complete rewrite of `preview_pane.rs`: 351 to 1581 lines
+
+### Technical
+- Test count: 337 passing (+58 new preview tests, from 279)
+- Zero clippy warnings
 
 ## [0.3.0] - 2026-04-05
 
@@ -179,8 +229,5 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - No known vulnerabilities
 
 ### Known Limitations
-- Link autocomplete needs keybinding integration (Up/Down arrows)
-- Link following needs keybinding integration (Ctrl+]/Ctrl+[)
-- Backlinks pane needs database query integration (Ctrl+B)
-- Graph visualization planned for future release
+- Graph visualization planned for future release (Mode::Graph scaffolding exists)
 - Terminal-only (no mobile support)

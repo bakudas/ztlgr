@@ -36,7 +36,7 @@ Full integration of the link system into the application:
   - `find_note_by_title()` - Case-insensitive note lookup by title
   - `get_links_for_note()` - Retrieve all outgoing links for a note
 
-- **Link Following** (`Ctrl+]` forward, `Ctrl+[` back):
+- **Link Following** (`Enter` to follow, `Ctrl+O` to go back):
   - Detects wiki-style `[[target]]`/`[[target|label]]` and markdown-style `[label](target)` at cursor position
   - Resolves targets by title (case-insensitive) or note ID
   - Opens external URLs with status bar message
@@ -44,8 +44,7 @@ Full integration of the link system into the application:
 
 - **Backlinks Pane** (`B` to toggle):
   - Shows all notes linking to the current note
-  - Displayed as right panel option (`RightPanel::Backlinks`)
-  - Scroll support with `j/k` keys
+  - Displayed as footer in the preview panel (70/30 split)
   - Auto-refreshes when loading notes
 
 - **Link Autocomplete** (Insert mode):
@@ -62,11 +61,14 @@ Full integration of the link system into the application:
 ### 🔧 Technical Changes
 
 - Bumped version from 0.3.0 to 0.4.0
-- 370 tests passing (+33 new tests, up from 337)
+- 372 tests passing (+35 new tests, up from 337)
 - Declared orphaned modules (`link_following`, `navigation_history`) in `ui/mod.rs`
 - Removed blanket `#![allow(dead_code)]` from `backlinks_pane.rs` and `link_autocomplete.rs`
 - Cleaned up unused imports in `widgets/mod.rs`
 - Added `get_current_line()` and `cursor_col()` to `NoteEditor` for cursor context
+- Fixed autocomplete to insert note title instead of UUID, and delete `[[` prefix to avoid double brackets
+- Replaced impossible `Ctrl+]`/`Ctrl+[` keybindings with `Enter`/`Ctrl+O` (terminal-compatible)
+- Moved backlinks from separate panel mode to preview footer (70/30 split)
 
 ---
 
@@ -147,10 +149,11 @@ Comprehensive help system accessible via `?` or `:help`:
 
 ### ✅ Inter-note Links Integration (v0.4.0)
 - ✅ **DB Methods** - `get_backlinks()`, `delete_links_for_note()`, `find_note_by_title()`, `get_links_for_note()` (15 tests)
-- ✅ **Link Following** - Detect link at cursor, resolve by title/ID, navigate (`Ctrl+]`/`Ctrl+[`)
+- ✅ **Link Following** - Detect link at cursor, resolve by title/ID, navigate (`Enter`/`Ctrl+O`)
 - ✅ **Navigation History** - LIFO with max 50 entries, go back support
-- ✅ **Backlinks Pane** - `B` toggle, right panel, scroll with `j/k`, auto-refresh
+- ✅ **Backlinks Pane** - `B` toggle, preview footer (70/30 split), auto-refresh
 - ✅ **Autocomplete Wiring** - Tab/Enter accept, Up/Down navigate, insert mode only
+- ✅ **Autocomplete Fix** - Inserts note title (not UUID), no double brackets
 - ✅ **Extract & Store Links** - Auto-parse on save, sync link graph in DB
 - ✅ **Code Cleanup** - Removed dead_code allows, declared orphaned modules, cleaned imports
 
@@ -331,13 +334,15 @@ ztlgr sync --vault ~/my-notes --force
 ## Arquitetura
 
 ```
-┌─────────────────────────────────────────────┐
-│                 TUI (Ratatui)                │
-│  ┌──────────┬──────────────┬──────────────┐│
-│  │ Sidebar  │    Editor    │   Preview    ││
-│  │ (Notes)  │   (Vim-like)  │  (Markdown)  ││
-│  └──────────┴──────────────┴──────────────┘│
-└─────────────────────────────────────────────┘
+┌─────────────────────────────────────────────────┐
+│                  TUI (Ratatui)                   │
+│  ┌──────────┬──────────────┬──────────────────┐ │
+│  │ Sidebar  │    Editor    │    Preview       │ │
+│  │ (Notes)  │  (Vim-like)  │   (Markdown)     │ │
+│  │          │              ├──────────────────┤ │
+│  │          │              │   Backlinks (B)  │ │
+│  └──────────┴──────────────┴──────────────────┘ │
+└─────────────────────────────────────────────────┘
                  ▲
                  │
 ┌─────────────────────────────────────────────┐
@@ -374,5 +379,5 @@ ztlgr sync --vault ~/my-notes --force
 
 ---
 
-**Status**: 🟢 Inter-note Links Integration Complete - Starting Knowledge Graph  
-**Próximo**: Graph visualization, graph navigation, graph filtering.
+**Status**: 🟢 v0.4.0 Released - Inter-note Links Complete  
+**Próximo**: Knowledge graph visualization, graph navigation, graph filtering.
