@@ -61,6 +61,12 @@ pub enum ZtlgrError {
 
     #[error("Skills error: {0}")]
     Skills(String),
+
+    #[error("LLM error: {0}")]
+    Llm(String),
+
+    #[error("LLM provider error: {0}")]
+    LlmProvider(String),
 }
 
 pub type Result<T> = std::result::Result<T, ZtlgrError>;

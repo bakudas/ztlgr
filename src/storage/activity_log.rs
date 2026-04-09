@@ -16,6 +16,7 @@ pub enum ActivityKind {
     Import,
     Index,
     Ingest,
+    Llm,
 }
 
 impl ActivityKind {
@@ -28,6 +29,7 @@ impl ActivityKind {
             ActivityKind::Import => "import",
             ActivityKind::Index => "index",
             ActivityKind::Ingest => "ingest",
+            ActivityKind::Llm => "llm",
         }
     }
 }

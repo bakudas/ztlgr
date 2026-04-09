@@ -112,3 +112,34 @@ auto_commit = false
 
 # Commit message template ({action} and {details} are replaced)
 commit_message = "{action}: {details}"
+
+[llm]
+# Enable LLM integration (opt-in, disabled by default)
+# ztlgr works 100% without LLM -- this is an optional amplifier
+enabled = false
+
+# Provider: ollama (local), openai, anthropic
+provider = "ollama"
+
+# Model name (provider-specific)
+# Ollama: "llama3", "mistral", "codellama", etc.
+# OpenAI: "gpt-4o", "gpt-4o-mini", "o3", etc.
+# Anthropic: "claude-sonnet-4", "claude-haiku", etc.
+model = "llama3"
+
+# Override base URL (optional)
+# Ollama default: http://localhost:11434
+# Useful for remote Ollama instances or API proxies
+# api_base = ""
+
+# Environment variable name holding the API key
+# The key itself is NEVER stored in config files
+# Ollama does not require an API key
+# api_key_env = "OPENAI_API_KEY"
+api_key_env = ""
+
+# Maximum tokens to generate per completion
+max_tokens = 4096
+
+# Sampling temperature (0.0 = deterministic, 1.0 = creative)
+temperature = 0.7

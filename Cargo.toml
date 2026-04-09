@@ -39,6 +39,9 @@ pulldown-cmark = "0.13"
 # Hashing
 sha2 = "0.10"
 
+# HTTP client (LLM providers)
+reqwest = { version = "0.12", features = ["json", "rustls-tls"] }
+
 # Regex
 regex = "1.10"
 

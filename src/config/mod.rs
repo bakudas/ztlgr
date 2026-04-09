@@ -2,6 +2,7 @@ mod settings;
 mod theme;
 
 pub use settings::Config;
+pub use settings::LlmConfig;
 pub use theme::Theme;
 
 pub mod themes {
