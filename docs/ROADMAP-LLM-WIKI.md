@@ -2,7 +2,7 @@
 
 **Branch:** `feat/llm-wiki-integration`
 **Created:** April 9, 2026
-**Status:** Phase 5 Complete, Phase 6 Next
+**Status:** Phase 6 Complete — All 7 phases implemented
 
 ---
 
@@ -285,20 +285,20 @@ the LLM as the engine that operates on all of it.
 
 **Dependencies:** Phase 4 (LLM provider)
 
-### Phase 6: MCP Server
+### Phase 6: MCP Server ✅
 **Effort:** Medium | **Impact:** High
 **Why last:** Complements internal LLM integration with external access. Lets any
 LLM agent use ztlgr as a knowledge tool without the TUI.
 
-- [ ] MCP server implementation (JSON-RPC over stdio)
-- [ ] Tools: `search`, `get_note`, `list_notes`, `create_note`, `update_note`
-- [ ] Tools: `get_backlinks`, `get_graph`, `ingest_source`
-- [ ] Tools: `read_index`, `read_log`, `read_skills`
-- [ ] `ztlgr mcp` CLI command to start server
-- [ ] Config for MCP in `.ztlgr/config.toml`
-- [ ] New module: `src/mcp/mod.rs`
-- [ ] New module: `src/mcp/server.rs`
-- [ ] New module: `src/mcp/tools.rs`
+- [x] MCP server implementation (JSON-RPC over stdio)
+- [x] Tools: `search`, `get_note`, `list_notes`, `create_note`, `get_backlinks`
+- [x] Tools: `ingest_source`, `read_index`, `read_log`, `read_skills`
+- [x] `ztlgr mcp` CLI command to start server
+- [x] New module: `src/mcp/mod.rs` (JSON-RPC types, MCP structs)
+- [x] New module: `src/mcp/tools.rs` (9 tools + handlers)
+- [x] New module: `src/mcp/server.rs` (stdio transport, state machine)
+- [x] Error variant: `Mcp(String)`
+- [x] Help modal updated with `mcp` command
 
 **Dependencies:** Phase 5 (full wiki operations available)
 

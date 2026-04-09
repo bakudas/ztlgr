@@ -1,9 +1,9 @@
 # Status do Projeto ztlgr
 
 **Data Atualização:** 9 de Abril de 2026  
-**Versão:** 0.5.0 (Knowledge Graph Visualization)  
-**Status Geral:** 🟢 ACTIVE DEVELOPMENT  
-**Testes:** 797 passing (100% success rate)
+**Versão:** 0.5.0 (Knowledge Graph Visualization)
+**Status Geral:** 🟢 ACTIVE DEVELOPMENT
+**Testes:** 867 passing (100% success rate)
 
 ---
 
@@ -23,7 +23,7 @@
 - ✅ **LLM Wiki Phase 3**: 100% (.skills/ infrastructure, generator, init-skills CLI)
 - ✅ **LLM Wiki Phase 4**: 100% (LLM provider trait, Ollama/OpenAI/Anthropic, context builder, usage tracker)
 - ✅ **LLM Wiki Phase 5**: 100% (workflow engine, ingest/query/lint workflows, ask/lint CLI)
-- 🟡 **LLM Wiki Phase 6**: 0% (MCP server -- next)
+- ✅ **LLM Wiki Phase 6**: 100% (MCP server -- stdio transport, 9 tools, 67 tests)
 
 ---
 
@@ -265,6 +265,7 @@ Comprehensive help system accessible via `?` or `:help`:
 | `ztlgr ingest --process` | Ingere + processa com LLM (gera nota de literatura) |
 | `ztlgr ask "<question>"` | Consulta o grimoire via LLM |
 | `ztlgr lint [--full]` | Lint local (sem LLM) ou completo (com LLM) |
+| `ztlgr mcp` | Inicia MCP server (JSON-RPC over stdio) |
 | `ztlgr init-skills` | Gera/valida `.skills/` no grimoire |
 | `ztlgr --help` | Ajuda completa |
 | `ztlgr --version` | Versão |
@@ -421,12 +422,15 @@ entity pages) ao invés de re-derivar conhecimento a cada query.
 - [x] CLI tests: config loading, ask, lint commands (8 new tests)
 - [x] Help modal updated with `--process`, `ask`, `lint` commands
 
-### Phase 6: MCP Server
-- [ ] `ztlgr mcp` -- expõe vault como MCP tools (JSON-RPC over stdio)
-- [ ] Tools: search, get_note, list_notes, create_note, update_note
-- [ ] Tools: get_backlinks, get_graph, ingest_source
-- [ ] Tools: read_index, read_log, read_skills
-- [ ] `src/mcp/mod.rs`, `src/mcp/server.rs`, `src/mcp/tools.rs`
+### ✅ Phase 6: MCP Server (+67 tests, 867 total)
+- [x] `src/mcp/mod.rs` — JSON-RPC 2.0 types, MCP lifecycle structs, `InitializeParams`, `InitializeResult`, `ToolDefinition`, `ToolCallResult` (21 tests)
+- [x] `src/mcp/tools.rs` — 9 tool definitions and handlers: search, get_note, list_notes, create_note, get_backlinks, ingest_source, read_index, read_log, read_skills (45 tests)
+- [x] `src/mcp/server.rs` — Stdio transport, `ServerState` state machine, `process_message()`, `run_server()` (21 tests)
+- [x] `ztlgr mcp` — CLI command to start MCP server over stdio
+- [x] Protocol: JSON-RPC 2.0 over stdin/stdout, newline-delimited
+- [x] Lifecycle: initialize → initialized → operation (tools/list, tools/call) → shutdown
+- [x] Error variants: `Mcp(String)` added to `ZtlgrError`
+- [x] Help modal updated with `mcp` command
 
 ### Backlog (mantido do sprint anterior)
 - [ ] Graph filtering by note type, tags, or link depth
@@ -575,5 +579,5 @@ ztlgr ingest ~/papers/article.pdf --process --vault ~/my-notes
 
 ---
 
-**Status**: 🟢 v0.5.0 Released - LLM Wiki Phase 5 Complete (LLM Workflows)  
-**Próximo**: Phase 6 - MCP Server (`ztlgr mcp` -- expose grimoire as MCP tools for external LLM agents).
+**Status**: 🟢 v0.5.0 Released - LLM Wiki Phase 6 Complete (MCP Server)  
+**Próximo**: Merge to main, release v0.6.0 with full LLM Wiki integration (Phases 0-6 complete).
