@@ -293,6 +293,18 @@ impl HelpModal {
             Span::styled("  Ingest source into raw/", fg_style),
         ]));
         lines.push(Line::from(vec![
+            Span::styled("  --process            ", key_style),
+            Span::styled("  LLM-process after ingest", fg_style),
+        ]));
+        lines.push(Line::from(vec![
+            Span::styled("ztlgr ask <question>   ", key_style),
+            Span::styled("  Ask the grimoire (LLM)", fg_style),
+        ]));
+        lines.push(Line::from(vec![
+            Span::styled("ztlgr lint [--full]    ", key_style),
+            Span::styled("  Lint grimoire quality", fg_style),
+        ]));
+        lines.push(Line::from(vec![
             Span::styled("ztlgr init-skills      ", key_style),
             Span::styled("  Generate .skills/ for LLMs", fg_style),
         ]));

@@ -4,6 +4,7 @@ use std::path::{Path, PathBuf};
 use crate::config::Config;
 use crate::db::Database;
 use crate::error::{Result, ZtlgrError};
+use crate::llm::workflows::{IngestWorkflow, LintWorkflow, QueryWorkflow};
 use crate::skills::generator::SkillsGenerator;
 use crate::skills::Skills;
 use crate::source::ingest::Ingester;
@@ -114,6 +115,31 @@ pub enum Commands {
         #[arg(short, long)]
         title: Option<String>,
 
+        /// Process the source with LLM after ingest (creates literature note)
+        #[arg(long)]
+        process: bool,
+
+        /// Grimoire path
+        #[arg(long)]
+        vault: Option<PathBuf>,
+    },
+
+    /// Ask a question and get an answer from the grimoire (requires LLM)
+    Ask {
+        /// The question to ask
+        question: String,
+
+        /// Grimoire path
+        #[arg(long)]
+        vault: Option<PathBuf>,
+    },
+
+    /// Lint the grimoire for quality issues
+    Lint {
+        /// Run full LLM-powered analysis (default: local only)
+        #[arg(long)]
+        full: bool,
+
         /// Grimoire path
         #[arg(long)]
         vault: Option<PathBuf>,
@@ -182,10 +208,32 @@ pub async fn execute(cli: &Cli) -> Result<()> {
         Some(Commands::Ingest {
             file,
             title,
+            process,
             vault: cmd_vault,
         }) => {
             let vault_path = resolve_vault_path(cmd_vault.as_ref(), cli.vault.as_ref())?;
-            cmd_ingest(file, title.as_deref(), &vault_path)?;
+            cmd_ingest(
+                file,
+                title.as_deref(),
+                &vault_path,
+                *process,
+                cli.config.as_ref(),
+            )
+            .await?;
+        }
+        Some(Commands::Ask {
+            question,
+            vault: cmd_vault,
+        }) => {
+            let vault_path = resolve_vault_path(cmd_vault.as_ref(), cli.vault.as_ref())?;
+            cmd_ask(&vault_path, question, cli.config.as_ref()).await?;
+        }
+        Some(Commands::Lint {
+            full,
+            vault: cmd_vault,
+        }) => {
+            let vault_path = resolve_vault_path(cmd_vault.as_ref(), cli.vault.as_ref())?;
+            cmd_lint(&vault_path, *full, cli.config.as_ref()).await?;
         }
         Some(Commands::InitSkills { vault: cmd_vault }) => {
             let vault_path = resolve_vault_path(cmd_vault.as_ref(), cli.vault.as_ref())?;
@@ -425,7 +473,13 @@ fn cmd_index(vault_path: &Path, format: Format) -> Result<()> {
     Ok(())
 }
 
-fn cmd_ingest(source_path: &Path, title: Option<&str>, vault_path: &Path) -> Result<()> {
+async fn cmd_ingest(
+    source_path: &Path,
+    title: Option<&str>,
+    vault_path: &Path,
+    process: bool,
+    config_path: Option<&PathBuf>,
+) -> Result<()> {
     let vault = Vault::new(vault_path.to_path_buf(), Format::Markdown);
 
     if !vault.exists() {
@@ -453,7 +507,123 @@ fn cmd_ingest(source_path: &Path, title: Option<&str>, vault_path: &Path) -> Res
         println!("  Hash: {}", &result.source.content_hash[..16]);
     }
 
+    // If --process flag is set, run LLM processing
+    if process {
+        println!();
+        println!("Processing with LLM...");
+
+        let config = load_config(vault_path, config_path)?;
+        let llm_config = &config.llm;
+
+        // Re-open DB since Ingester consumed the first one
+        let db2 = Database::new(&db_path)?;
+
+        let process_result = IngestWorkflow::process(
+            llm_config,
+            vault_path,
+            &db2,
+            &result.source.file_path,
+            &result.source.title,
+        )
+        .await?;
+
+        println!("Literature note created:");
+        println!("  Title: {}", process_result.literature_note_title);
+        println!("  Note ID: {}", process_result.note_id);
+        println!("  Model: {}", process_result.model);
+        println!("  Tokens: {}", process_result.total_tokens);
+        if process_result.estimated_cost_usd > 0.0 {
+            println!("  Est. cost: ${:.4}", process_result.estimated_cost_usd);
+        }
+    }
+
     Ok(())
+}
+
+async fn cmd_ask(vault_path: &Path, question: &str, config_path: Option<&PathBuf>) -> Result<()> {
+    let vault = Vault::new(vault_path.to_path_buf(), Format::Markdown);
+
+    if !vault.exists() {
+        return Err(ZtlgrError::VaultNotFound(vault_path.display().to_string()));
+    }
+
+    let config = load_config(vault_path, config_path)?;
+    let llm_config = &config.llm;
+
+    let db_path = vault.database_path();
+    let db = Database::new(&db_path)?;
+
+    let result = QueryWorkflow::ask(llm_config, vault_path, &db, question).await?;
+
+    // Print the answer
+    println!("{}", result.answer);
+
+    if !result.consulted_notes.is_empty() {
+        println!();
+        println!("--- Notes consulted ({}) ---", result.consulted_notes.len());
+        for note in &result.consulted_notes {
+            println!("  - [[{}]]", note);
+        }
+    }
+
+    println!();
+    println!(
+        "[{} | {} tokens | ${:.4}]",
+        result.model, result.total_tokens, result.estimated_cost_usd
+    );
+
+    Ok(())
+}
+
+async fn cmd_lint(vault_path: &Path, full: bool, config_path: Option<&PathBuf>) -> Result<()> {
+    let vault = Vault::new(vault_path.to_path_buf(), Format::Markdown);
+
+    if !vault.exists() {
+        return Err(ZtlgrError::VaultNotFound(vault_path.display().to_string()));
+    }
+
+    let db_path = vault.database_path();
+    let db = Database::new(&db_path)?;
+
+    if full {
+        let config = load_config(vault_path, config_path)?;
+        let llm_config = &config.llm;
+
+        let report = LintWorkflow::full_lint(llm_config, vault_path, &db).await?;
+
+        println!("{}", report.to_markdown());
+
+        if let Some(model) = &report.model {
+            println!(
+                "[{} | {} tokens | ${:.4}]",
+                model, report.total_tokens, report.estimated_cost_usd
+            );
+        }
+    } else {
+        let report = LintWorkflow::local_lint(vault_path, &db)?;
+
+        if report.is_clean() {
+            println!("Grimoire is clean! No issues found.");
+        } else {
+            println!("{}", report.to_markdown());
+        }
+    }
+
+    Ok(())
+}
+
+/// Load configuration from the config file or vault-local config.
+fn load_config(vault_path: &Path, config_path: Option<&PathBuf>) -> Result<Config> {
+    if let Some(cfg_path) = config_path {
+        Config::load(cfg_path).map_err(|e| ZtlgrError::Config(e.to_string()))
+    } else {
+        let vault_config_path = vault_path.join(".ztlgr").join("config.toml");
+        if vault_config_path.exists() {
+            Config::load(&vault_config_path).map_err(|e| ZtlgrError::Config(e.to_string()))
+        } else {
+            Ok(Config::default())
+        }
+    }
 }
 
 fn cmd_init_skills(vault_path: &Path) -> Result<()> {
@@ -819,7 +989,8 @@ mod tests {
         let source_file = temp_dir.path().join("article.md");
         std::fs::write(&source_file, "# Article\n\nContent here").unwrap();
 
-        let result = cmd_ingest(&source_file, None, &vault_path);
+        let rt = tokio::runtime::Runtime::new().unwrap();
+        let result = rt.block_on(cmd_ingest(&source_file, None, &vault_path, false, None));
         assert!(result.is_ok());
 
         // Verify file was copied to raw/
@@ -837,7 +1008,14 @@ mod tests {
         let source_file = temp_dir.path().join("a.md");
         std::fs::write(&source_file, "content").unwrap();
 
-        let result = cmd_ingest(&source_file, Some("Custom Title"), &vault_path);
+        let rt = tokio::runtime::Runtime::new().unwrap();
+        let result = rt.block_on(cmd_ingest(
+            &source_file,
+            Some("Custom Title"),
+            &vault_path,
+            false,
+            None,
+        ));
         assert!(result.is_ok());
     }
 
@@ -853,8 +1031,10 @@ mod tests {
         let file2 = temp_dir.path().join("second.md");
         std::fs::write(&file2, "same content").unwrap();
 
-        cmd_ingest(&file1, None, &vault_path).unwrap();
-        let result = cmd_ingest(&file2, None, &vault_path);
+        let rt = tokio::runtime::Runtime::new().unwrap();
+        rt.block_on(cmd_ingest(&file1, None, &vault_path, false, None))
+            .unwrap();
+        let result = rt.block_on(cmd_ingest(&file2, None, &vault_path, false, None));
         assert!(result.is_ok()); // Should succeed but report duplicate
     }
 
@@ -865,7 +1045,8 @@ mod tests {
         let source_file = temp_dir.path().join("file.md");
         std::fs::write(&source_file, "content").unwrap();
 
-        let result = cmd_ingest(&source_file, None, &vault_path);
+        let rt = tokio::runtime::Runtime::new().unwrap();
+        let result = rt.block_on(cmd_ingest(&source_file, None, &vault_path, false, None));
         assert!(result.is_err());
     }
 
@@ -875,7 +1056,14 @@ mod tests {
         let vault_path = temp_dir.path().join("ingest_nofile");
         cmd_new(&vault_path, "markdown", true, true).unwrap();
 
-        let result = cmd_ingest(Path::new("/nonexistent/file.md"), None, &vault_path);
+        let rt = tokio::runtime::Runtime::new().unwrap();
+        let result = rt.block_on(cmd_ingest(
+            Path::new("/nonexistent/file.md"),
+            None,
+            &vault_path,
+            false,
+            None,
+        ));
         assert!(result.is_err());
     }
 
@@ -1019,5 +1207,122 @@ mod tests {
             .join("context")
             .join("priorities.md")
             .exists());
+    }
+
+    // =====================================================================
+    // load_config tests
+    // =====================================================================
+
+    #[test]
+    fn test_load_config_default_when_no_config_file() {
+        let temp_dir = TempDir::new().unwrap();
+        let vault_path = temp_dir.path().join("noconf_vault");
+        cmd_new(&vault_path, "markdown", true, true).unwrap();
+
+        let config = load_config(&vault_path, None).unwrap();
+        // Default config: LLM disabled
+        assert!(!config.llm.enabled);
+        assert_eq!(config.llm.provider, "ollama");
+    }
+
+    #[test]
+    fn test_load_config_from_vault_config() {
+        let temp_dir = TempDir::new().unwrap();
+        let vault_path = temp_dir.path().join("conf_vault");
+        cmd_new(&vault_path, "markdown", true, true).unwrap();
+
+        // Write a config file inside the vault
+        let config_dir = vault_path.join(".ztlgr");
+        std::fs::write(
+            config_dir.join("config.toml"),
+            "[llm]\nenabled = true\nprovider = \"openai\"\nmodel = \"gpt-4o\"\n",
+        )
+        .unwrap();
+
+        let config = load_config(&vault_path, None).unwrap();
+        assert!(config.llm.enabled);
+        assert_eq!(config.llm.provider, "openai");
+    }
+
+    #[test]
+    fn test_load_config_explicit_path_takes_precedence() {
+        let temp_dir = TempDir::new().unwrap();
+        let vault_path = temp_dir.path().join("explicit_vault");
+        cmd_new(&vault_path, "markdown", true, true).unwrap();
+
+        // Write a separate config file
+        let cfg_path = temp_dir.path().join("custom.toml");
+        std::fs::write(
+            &cfg_path,
+            "[llm]\nenabled = true\nprovider = \"anthropic\"\nmodel = \"claude-sonnet-4-20250514\"\n",
+        )
+        .unwrap();
+
+        let config = load_config(&vault_path, Some(&cfg_path)).unwrap();
+        assert!(config.llm.enabled);
+        assert_eq!(config.llm.provider, "anthropic");
+    }
+
+    // =====================================================================
+    // Ask command tests
+    // =====================================================================
+
+    #[test]
+    fn test_cmd_ask_nonexistent_vault() {
+        let temp_dir = TempDir::new().unwrap();
+        let vault_path = temp_dir.path().join("nonexistent_ask");
+
+        let rt = tokio::runtime::Runtime::new().unwrap();
+        let result = rt.block_on(cmd_ask(&vault_path, "What is zettelkasten?", None));
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_cmd_ask_llm_disabled_by_default() {
+        let temp_dir = TempDir::new().unwrap();
+        let vault_path = temp_dir.path().join("ask_disabled");
+        cmd_new(&vault_path, "markdown", true, true).unwrap();
+
+        let rt = tokio::runtime::Runtime::new().unwrap();
+        let result = rt.block_on(cmd_ask(&vault_path, "test question", None));
+        // Should fail because LLM is disabled by default
+        assert!(result.is_err());
+    }
+
+    // =====================================================================
+    // Lint command tests
+    // =====================================================================
+
+    #[test]
+    fn test_cmd_lint_local_empty_vault() {
+        let temp_dir = TempDir::new().unwrap();
+        let vault_path = temp_dir.path().join("lint_vault");
+        cmd_new(&vault_path, "markdown", true, true).unwrap();
+
+        let rt = tokio::runtime::Runtime::new().unwrap();
+        let result = rt.block_on(cmd_lint(&vault_path, false, None));
+        assert!(result.is_ok());
+    }
+
+    #[test]
+    fn test_cmd_lint_nonexistent_vault() {
+        let temp_dir = TempDir::new().unwrap();
+        let vault_path = temp_dir.path().join("nonexistent_lint");
+
+        let rt = tokio::runtime::Runtime::new().unwrap();
+        let result = rt.block_on(cmd_lint(&vault_path, false, None));
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_cmd_lint_full_llm_disabled() {
+        let temp_dir = TempDir::new().unwrap();
+        let vault_path = temp_dir.path().join("lint_full_disabled");
+        cmd_new(&vault_path, "markdown", true, true).unwrap();
+
+        let rt = tokio::runtime::Runtime::new().unwrap();
+        let result = rt.block_on(cmd_lint(&vault_path, true, None));
+        // Should fail because LLM is disabled by default
+        assert!(result.is_err());
     }
 }

@@ -18,6 +18,10 @@ pub use db::Database;
 pub use error::{Result, ZtlgrError};
 pub use link::{LinkError, LinkFormat, LinkInfo, LinkTarget};
 pub use llm::{ContextBuilder, LlmProvider, LlmRequest, LlmResponse, ProviderKind};
+pub use llm::{
+    IngestProcessResult, IngestWorkflow, LintReport, LintWorkflow, QueryResult, QueryWorkflow,
+};
+pub use llm::{WorkflowEngine, WorkflowResult};
 pub use note::{Note, NoteId, NoteType, ZettelId};
 pub use skills::Skills;
 pub use source::{Source, SourceId};

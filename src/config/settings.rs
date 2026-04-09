@@ -7,6 +7,7 @@ use std::path::{Path, PathBuf};
 use super::theme::Theme;
 
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
+#[serde(default)]
 pub struct Config {
     /// Path to vault database file
     pub vault: VaultConfig,
@@ -269,6 +270,7 @@ impl Default for VcsConfig {
 /// environment variable holding the API key (the key itself is never
 /// stored in config files).
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(default)]
 pub struct LlmConfig {
     /// Enable LLM integration (opt-in, disabled by default)
     pub enabled: bool,

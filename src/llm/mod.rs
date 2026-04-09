@@ -4,6 +4,8 @@ pub mod ollama;
 pub mod openai;
 pub mod provider;
 pub mod usage;
+pub mod workflow;
+pub mod workflows;
 
 use crate::config::LlmConfig;
 use crate::error::{Result, ZtlgrError};
@@ -11,6 +13,10 @@ use crate::error::{Result, ZtlgrError};
 pub use context::ContextBuilder;
 pub use provider::{LlmProvider, LlmRequest, LlmResponse, Message, Role, TokenUsage};
 pub use usage::UsageTracker;
+pub use workflow::{WorkflowEngine, WorkflowResult};
+pub use workflows::{
+    IngestProcessResult, IngestWorkflow, LintReport, LintWorkflow, QueryResult, QueryWorkflow,
+};
 
 /// Supported LLM provider backends.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
