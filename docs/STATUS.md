@@ -3,7 +3,7 @@
 **Data Atualização:** 9 de Abril de 2026  
 **Versão:** 0.5.0 (Knowledge Graph Visualization)  
 **Status Geral:** 🟢 ACTIVE DEVELOPMENT  
-**Testes:** 605 passing (100% success rate)
+**Testes:** 727 passing (100% success rate)
 
 ---
 
@@ -382,10 +382,21 @@ entity pages) ao invés de re-derivar conhecimento a cada query.
 - [x] CLI tests: skills by default, skip with flag, vault name in skills, init-skills success, nonexistent vault, idempotent, fills missing files (7 new tests)
 - [x] Help modal updated with `init-skills` command
 
-### Phase 4: LLM Provider Abstraction
-- [ ] Trait `LlmProvider` (OpenAI, Anthropic, Ollama)
-- [ ] Config `[llm]` em `.ztlgr/config.toml`
-- [ ] Token/cost tracking
+### ✅ Phase 4: LLM Provider Abstraction (+122 tests, 727 total)
+- [x] `src/llm/provider.rs` — `LlmProvider` trait (`Pin<Box<dyn Future>>` for object safety), `Role`, `Message`, `LlmRequest` (builder), `LlmResponse`, `TokenUsage` (16 tests)
+- [x] `src/llm/mod.rs` — `ProviderKind` enum (Ollama, OpenAi, Anthropic) with `FromStr`, `create_provider()` factory (17 tests)
+- [x] `src/llm/ollama.rs` — `OllamaProvider` with Ollama Chat API format, local-first (11 tests)
+- [x] `src/llm/openai.rs` — `OpenAiProvider` with OpenAI Chat Completions API (14 tests)
+- [x] `src/llm/anthropic.rs` — `AnthropicProvider` with Anthropic Messages API (system as top-level field) (18 tests)
+- [x] `src/llm/context.rs` — `ContextBuilder` loads `.skills/` files, builds system prompts, estimates tokens (18 tests)
+- [x] `src/llm/usage.rs` — `UsageTracker` per-model cost estimation, activity log integration, hardcoded pricing (26 tests)
+- [x] `src/config/settings.rs` — `LlmConfig` struct (enabled, provider, model, api_base, api_key_env, max_tokens, temperature) with `#[serde(default)]` (4 tests)
+- [x] `config.example.toml` — `[llm]` section with full documentation
+- [x] `src/storage/activity_log.rs` — `Llm` variant in `ActivityKind`
+- [x] `Cargo.toml` — Added `reqwest` 0.12 with `rustls-tls`
+- [x] Error variants: `Llm(String)`, `LlmProvider(String)`
+- [x] API keys read from env vars, NEVER stored in config files
+- [x] Ollama is default (local-first, no API key needed)
 
 ### Phase 5: LLM Workflows (Ingest, Query, Lint)
 - [ ] `:ingest` / `ztlgr ingest --process`
@@ -482,11 +493,22 @@ ztlgr init-skills --vault ~/my-notes
 └─────────────────────────────────────────────┘
                  │
                  ▼
+┌─────────────────────────────────────────────┐
+│         LLM Provider Layer (Phase 4)             │
+│  ┌─────────┬──────────┬──────────────────┐  │
+│  │ Ollama  │  OpenAI  │   Anthropic      │  │
+│  │ (local) │  (cloud) │   (cloud)        │  │
+│  └─────────┴──────────┴──────────────────┘  │
+│  ContextBuilder (loads .skills/) │ UsageTracker │
+└─────────────────────────────────────────────┘
+                 │
+                 ▼
         ┌─────────────────────────┐
         │   Database Layer (DB)    │
         │  ┌───────────────────┐  │
         │  │   SQLite Index    │  │
         │  │  (FTS5 + Graph)   │  │
+        │  │  + Sources (v2)   │  │
         │  └───────────────────┘  │
         └─────────────────────────┘
                      │
@@ -500,17 +522,17 @@ ztlgr init-skills --vault ~/my-notes
      └────────────────────────────────┘
                      │
                      ▼
-     ┌────────────────────────────────┐
-     │   File System                           │
-     │   ~/vault/permanent/*.md                │
-     │   ~/vault/inbox/*.md                    │
-      │   ~/vault/raw/* (immutable sources)     │
-      │   ~/vault/.skills/* (LLM agent schema)  │
-      │   ~/vault/.ztlgr/vault.db               │
+     ┌────────────────────────────────────────┐
+     │   File System                          │
+     │   ~/vault/permanent/*.md               │
+     │   ~/vault/inbox/*.md                   │
+     │   ~/vault/raw/* (immutable sources)    │
+     │   ~/vault/.skills/* (LLM agent schema) │
+     │   ~/vault/.ztlgr/vault.db              │
      └────────────────────────────────────────┘
 ```
 
 ---
 
-**Status**: 🟢 v0.5.0 Released - LLM Wiki Phase 3 Complete (.skills/ Infrastructure)  
-**Próximo**: Phase 4 - LLM Provider Abstraction (LlmProvider trait, [llm] config, Ollama first provider).
+**Status**: 🟢 v0.5.0 Released - LLM Wiki Phase 4 Complete (LLM Provider Abstraction)  
+**Próximo**: Phase 5 - LLM Workflows (`:ingest --process`, `:ask`, `:lint` commands).
