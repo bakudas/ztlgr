@@ -36,6 +36,9 @@ uuid = { version = "1.6", features = ["v4", "serde"] }
 # Markdown parsing
 pulldown-cmark = "0.13"
 
+# Hashing
+sha2 = "0.10"
+
 # Regex
 regex = "1.10"
 

@@ -289,6 +289,10 @@ impl HelpModal {
             Span::styled("  Generate grimoire index", fg_style),
         ]));
         lines.push(Line::from(vec![
+            Span::styled("ztlgr ingest <file>    ", key_style),
+            Span::styled("  Ingest source into raw/", fg_style),
+        ]));
+        lines.push(Line::from(vec![
             Span::styled("ztlgr --help           ", key_style),
             Span::styled("  Show CLI help", fg_style),
         ]));

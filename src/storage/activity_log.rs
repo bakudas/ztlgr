@@ -15,6 +15,7 @@ pub enum ActivityKind {
     Delete,
     Import,
     Index,
+    Ingest,
 }
 
 impl ActivityKind {
@@ -26,6 +27,7 @@ impl ActivityKind {
             ActivityKind::Delete => "delete",
             ActivityKind::Import => "import",
             ActivityKind::Index => "index",
+            ActivityKind::Ingest => "ingest",
         }
     }
 }
@@ -170,6 +172,13 @@ impl ActivityLog {
             .with_detail(format!("Total notes indexed: {}", total_notes));
         self.append(&entry)
     }
+
+    /// Convenience: log a source ingest operation.
+    pub fn log_ingest(&self, title: &str, file_path: &str) -> Result<()> {
+        let entry = ActivityEntry::new(ActivityKind::Ingest, format!("Ingested \"{}\"", title))
+            .with_detail(format!("File: {}", file_path));
+        self.append(&entry)
+    }
 }
 
 #[cfg(test)]
@@ -218,6 +227,7 @@ mod tests {
         assert_eq!(format!("{}", ActivityKind::Delete), "delete");
         assert_eq!(format!("{}", ActivityKind::Import), "import");
         assert_eq!(format!("{}", ActivityKind::Index), "index");
+        assert_eq!(format!("{}", ActivityKind::Ingest), "ingest");
     }
 
     // =====================================================================
@@ -350,6 +360,17 @@ mod tests {
         assert!(content.contains("Total notes indexed: 42"));
     }
 
+    #[test]
+    fn test_log_ingest() {
+        let (log, _temp) = setup();
+        log.log_ingest("My Article", "raw/my-article-abc12345.md")
+            .unwrap();
+
+        let content = log.read().unwrap();
+        assert!(content.contains("ingest | Ingested \"My Article\""));
+        assert!(content.contains("File: raw/my-article-abc12345.md"));
+    }
+
     // =====================================================================
     // Edge cases
     // =====================================================================
@@ -375,6 +396,7 @@ mod tests {
         log.log_delete("Old").unwrap();
         log.log_import(10, 0).unwrap();
         log.log_index(50).unwrap();
+        log.log_ingest("Paper", "raw/paper.pdf").unwrap();
 
         let content = log.read().unwrap();
 
@@ -384,5 +406,6 @@ mod tests {
         assert!(content.contains("delete |"));
         assert!(content.contains("import |"));
         assert!(content.contains("index |"));
+        assert!(content.contains("ingest |"));
     }
 }

@@ -49,6 +49,15 @@ pub enum ZtlgrError {
 
     #[error("Git error: {0}")]
     Git(String),
+
+    #[error("Source not found: {0}")]
+    SourceNotFound(String),
+
+    #[error("Ingest error: {0}")]
+    Ingest(String),
+
+    #[error("Migration error: {0}")]
+    Migration(String),
 }
 
 pub type Result<T> = std::result::Result<T, ZtlgrError>;

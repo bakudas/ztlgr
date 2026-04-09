@@ -1,6 +1,6 @@
 pub mod metadata;
 pub mod note_types;
-mod utils;
+pub mod utils;
 pub mod zettel;
 
 pub use metadata::Metadata;

@@ -5,6 +5,7 @@ use chrono::Utc;
 use crate::db::Database;
 use crate::error::Result;
 use crate::note::Note;
+use crate::source::Source;
 
 /// Generates and writes `index.md` for a grimoire vault.
 ///
@@ -36,6 +37,7 @@ impl<'a> IndexGenerator<'a> {
     pub fn generate(&self) -> Result<String> {
         let total_notes = self.database.count_notes()?;
         let total_links = self.database.count_links()?;
+        let total_sources = self.database.count_sources()?;
         let type_counts = self.database.count_notes_by_type()?;
         let now = Utc::now().format("%Y-%m-%dT%H:%M:%SZ");
 
@@ -48,8 +50,8 @@ impl<'a> IndexGenerator<'a> {
             now
         ));
         out.push_str(&format!(
-            "> Notes: {} | Links: {}\n",
-            total_notes, total_links
+            "> Notes: {} | Links: {} | Sources: {}\n",
+            total_notes, total_links, total_sources
         ));
 
         // Type breakdown in header
@@ -73,6 +75,19 @@ impl<'a> IndexGenerator<'a> {
 
             for note in &notes {
                 let entry = format_note_entry(note);
+                out.push_str(&entry);
+                out.push('\n');
+            }
+        }
+
+        // Sources section
+        let sources = self.database.list_sources(usize::MAX, 0)?;
+        if !sources.is_empty() {
+            out.push('\n');
+            out.push_str("## Sources\n\n");
+
+            for source in &sources {
+                let entry = format_source_entry(source);
                 out.push_str(&entry);
                 out.push('\n');
             }
@@ -159,10 +174,46 @@ fn note_tags_str(note: &Note) -> String {
     }
 }
 
+/// Format a single source entry for the index.
+///
+/// Format: `- **Title** -- raw/file.md (mime, size)`
+fn format_source_entry(source: &Source) -> String {
+    let mut parts = Vec::new();
+
+    if let Some(mime) = &source.mime_type {
+        parts.push(mime.clone());
+    }
+
+    parts.push(format_file_size(source.file_size));
+
+    if parts.is_empty() {
+        format!("- **{}** -- `{}`", source.title, source.file_path)
+    } else {
+        format!(
+            "- **{}** -- `{}` ({})",
+            source.title,
+            source.file_path,
+            parts.join(", ")
+        )
+    }
+}
+
+/// Format file size in human-readable form.
+fn format_file_size(bytes: u64) -> String {
+    if bytes < 1024 {
+        format!("{} B", bytes)
+    } else if bytes < 1024 * 1024 {
+        format!("{:.1} KB", bytes as f64 / 1024.0)
+    } else {
+        format!("{:.1} MB", bytes as f64 / (1024.0 * 1024.0))
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
     use crate::note::{Metadata, NoteId, NoteType};
+    use crate::source::Source;
     use tempfile::TempDir;
 
     fn create_test_db() -> (Database, TempDir) {
@@ -305,7 +356,7 @@ mod tests {
         let content = gen.generate().expect("Failed to generate");
 
         assert!(content.starts_with("# Grimoire Index\n"));
-        assert!(content.contains("Notes: 0 | Links: 0"));
+        assert!(content.contains("Notes: 0 | Links: 0 | Sources: 0"));
         // No sections since there are no notes
         assert!(!content.contains("## Permanent Notes"));
     }
@@ -331,7 +382,7 @@ mod tests {
         let gen = IndexGenerator::new(&db);
         let content = gen.generate().expect("Failed to generate");
 
-        assert!(content.contains("Notes: 2 | Links: 0"));
+        assert!(content.contains("Notes: 2 | Links: 0 | Sources: 0"));
         assert!(content.contains("## Permanent Notes"));
         assert!(content.contains("- [[Zettelkasten]] -- Core method"));
         assert!(content.contains("## Fleeting Notes"));
@@ -419,7 +470,7 @@ mod tests {
         let gen = IndexGenerator::new(&db);
         let content = gen.generate().expect("Failed to generate");
 
-        assert!(content.contains("Notes: 2 | Links: 1"));
+        assert!(content.contains("Notes: 2 | Links: 1 | Sources: 0"));
     }
 
     #[test]
@@ -501,5 +552,102 @@ mod tests {
         let content = std::fs::read_to_string(index_path).unwrap();
         assert!(content.contains("# Grimoire Index"));
         assert!(content.contains("[[Test]]"));
+    }
+
+    // =====================================================================
+    // format_source_entry tests
+    // =====================================================================
+
+    #[test]
+    fn test_format_source_entry_basic() {
+        let source = Source::new("My Article", "hash123", "raw/my-article.md", 1500);
+        let entry = format_source_entry(&source);
+        assert!(entry.contains("**My Article**"));
+        assert!(entry.contains("`raw/my-article.md`"));
+        assert!(entry.contains("1.5 KB"));
+    }
+
+    #[test]
+    fn test_format_source_entry_with_mime() {
+        let source =
+            Source::new("Paper", "hash", "raw/paper.pdf", 2048).with_mime_type("application/pdf");
+        let entry = format_source_entry(&source);
+        assert!(entry.contains("application/pdf"));
+        assert!(entry.contains("2.0 KB"));
+    }
+
+    #[test]
+    fn test_format_file_size_bytes() {
+        assert_eq!(format_file_size(42), "42 B");
+    }
+
+    #[test]
+    fn test_format_file_size_kb() {
+        assert_eq!(format_file_size(1536), "1.5 KB");
+    }
+
+    #[test]
+    fn test_format_file_size_mb() {
+        assert_eq!(format_file_size(1_572_864), "1.5 MB");
+    }
+
+    // =====================================================================
+    // IndexGenerator with sources integration tests
+    // =====================================================================
+
+    #[test]
+    fn test_generate_includes_sources_section() {
+        let (db, _temp) = create_test_db();
+
+        let source = Source::new("Research Paper", "hash", "raw/paper.pdf", 5000)
+            .with_mime_type("application/pdf");
+        db.create_source(&source).expect("Failed");
+
+        let gen = IndexGenerator::new(&db);
+        let content = gen.generate().expect("Failed to generate");
+
+        assert!(content.contains("## Sources"));
+        assert!(content.contains("**Research Paper**"));
+        assert!(content.contains("`raw/paper.pdf`"));
+    }
+
+    #[test]
+    fn test_generate_no_sources_section_when_empty() {
+        let (db, _temp) = create_test_db();
+
+        let gen = IndexGenerator::new(&db);
+        let content = gen.generate().expect("Failed to generate");
+
+        assert!(!content.contains("## Sources"));
+    }
+
+    #[test]
+    fn test_generate_includes_source_count_in_header() {
+        let (db, _temp) = create_test_db();
+
+        let source = Source::new("Doc", "hash", "raw/doc.md", 100);
+        db.create_source(&source).expect("Failed");
+
+        let gen = IndexGenerator::new(&db);
+        let content = gen.generate().expect("Failed to generate");
+
+        assert!(content.contains("Sources: 1"));
+    }
+
+    #[test]
+    fn test_generate_sources_after_note_sections() {
+        let (db, _temp) = create_test_db();
+
+        db.create_note(&make_note("Note", "# Note\n\nContent", NoteType::Permanent))
+            .expect("Failed");
+        let source = Source::new("Source", "hash", "raw/source.md", 100);
+        db.create_source(&source).expect("Failed");
+
+        let gen = IndexGenerator::new(&db);
+        let content = gen.generate().expect("Failed to generate");
+
+        let pos_permanent = content.find("## Permanent Notes").unwrap();
+        let pos_sources = content.find("## Sources").unwrap();
+        assert!(pos_permanent < pos_sources);
     }
 }

@@ -3,7 +3,7 @@
 **Data Atualização:** 9 de Abril de 2026  
 **Versão:** 0.5.0 (Knowledge Graph Visualization)  
 **Status Geral:** 🟢 ACTIVE DEVELOPMENT  
-**Testes:** 486 passing (100% success rate)
+**Testes:** 552 passing (100% success rate)
 
 ---
 
@@ -254,6 +254,7 @@ Comprehensive help system accessible via `?` or `:help`:
 | `ztlgr import <source>` | Importa notas de diretório |
 | `ztlgr sync` | Sincroniza grimoire com database |
 | `ztlgr index` | Gera/atualiza index.md do grimoire |
+| `ztlgr ingest <file>` | Ingere arquivo fonte no `raw/` |
 | `ztlgr --help` | Ajuda completa |
 | `ztlgr --version` | Versão |
 
@@ -354,7 +355,20 @@ entity pages) ao invés de re-derivar conhecimento a cada query.
 - [x] Hooks: `ztlgr sync --force` regenerates index + writes activity log
 - [x] Hooks: `ztlgr import` writes activity log
 
-### Phase 2: Raw Sources Layer (próximo)
+### ✅ Phase 2: Raw Sources Layer (+66 tests, 552 total)
+- [x] Diretório `raw/` criado durante vault init para fontes imutáveis
+- [x] Tabela `sources` no DB (id, title, origin, hash, file_path, file_size, mime_type, ingested_at)
+- [x] Schema migration v1 → v2 (`migration_v2.sql`, auto-applied on DB open)
+- [x] `src/source/mod.rs` — `Source` struct, `SourceId`, builder pattern (9 tests)
+- [x] `src/source/ingest.rs` — `Ingester` with SHA-256 dedup, copy to `raw/`, DB + log integration (~15 tests)
+- [x] `src/db/schema.rs` — `get_schema_version()`, `migrate()`, 6 source CRUD methods (~20 tests)
+- [x] `src/storage/index_generator.rs` — Sources section in index, `format_file_size()` (7 new tests)
+- [x] `src/storage/activity_log.rs` — `Ingest` activity kind, `log_ingest()` (1 new test)
+- [x] `ztlgr ingest <file> [--title <name>]` CLI command (6 tests)
+- [x] Error variants: `SourceNotFound`, `Ingest`, `Migration`
+- [x] `sha2` crate added for content hashing
+
+### Phase 3: .skills/ Infrastructure (próximo)
 - [ ] Diretório `raw/` no vault para fontes imutáveis
 - [ ] Tabela `sources` no DB (id, title, origin, hash, ingested_at)
 - [ ] `ztlgr ingest <file>` CLI command
@@ -429,6 +443,10 @@ ztlgr sync --vault ~/my-notes --force
 
 # Gerar/atualizar index
 ztlgr index --vault ~/my-notes
+
+# Ingerir arquivo fonte (copia para raw/, registra no DB)
+ztlgr ingest ~/papers/article.pdf --vault ~/my-notes
+ztlgr ingest ~/papers/article.pdf --title "My Article" --vault ~/my-notes
 ```
 
 ---
@@ -452,8 +470,9 @@ ztlgr index --vault ~/my-notes
                  ▲
                  │
 ┌─────────────────────────────────────────────┐
-│              CLI (clap)                      │
-│  new | open | search | import | sync | index│
+│              CLI (clap)                          │
+│  new | open | search | import | sync | index     │
+│  ingest                                          │
 └─────────────────────────────────────────────┘
                  │
                  ▼
@@ -476,14 +495,15 @@ ztlgr index --vault ~/my-notes
                      │
                      ▼
      ┌────────────────────────────────┐
-     │   File System                   │
-     │   ~/vault/permanent/*.md        │
-     │   ~/vault/inbox/*.md            │
-     │   ~/vault/.ztlgr/vault.db       │
-     └────────────────────────────────┘
+     │   File System                           │
+     │   ~/vault/permanent/*.md                │
+     │   ~/vault/inbox/*.md                    │
+     │   ~/vault/raw/* (immutable sources)     │
+     │   ~/vault/.ztlgr/vault.db               │
+     └────────────────────────────────────────┘
 ```
 
 ---
 
-**Status**: 🟢 v0.5.0 Released - LLM Wiki Phase 1 Complete (Index & Log System)  
-**Próximo**: Phase 2 - Raw Sources Layer (raw/ directory, sources DB table, ztlgr ingest).
+**Status**: 🟢 v0.5.0 Released - LLM Wiki Phase 2 Complete (Raw Sources Layer)  
+**Próximo**: Phase 3 - .skills/ Infrastructure (init-skills CLI, templates, integration with vault init).

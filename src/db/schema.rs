@@ -6,6 +6,7 @@ use std::sync::Arc;
 
 use crate::error::{Result as ZResult, ZtlgrError};
 use crate::note::{Note, NoteId, NoteType, ZettelId};
+use crate::source::{Source, SourceId};
 
 pub use rusqlite;
 
@@ -85,9 +86,43 @@ impl Database {
     fn initialize(&self) -> ZResult<()> {
         let conn = self.conn.lock();
 
-        // Create tables
+        // Create base tables (v1 schema -- all IF NOT EXISTS, safe to re-run)
         conn.execute_batch(include_str!("../schema.sql"))
             .map_err(ZtlgrError::Database)?;
+
+        // Run migrations
+        Self::migrate(&conn)?;
+
+        Ok(())
+    }
+
+    /// Get the current schema version from the database.
+    fn get_schema_version(conn: &rusqlite::Connection) -> ZResult<usize> {
+        let version: String = conn
+            .query_row(
+                "SELECT value FROM schema_info WHERE key = 'version'",
+                [],
+                |row| row.get(0),
+            )
+            .map_err(ZtlgrError::Database)?;
+
+        version.parse::<usize>().map_err(|e| {
+            ZtlgrError::Migration(format!("invalid schema version '{}': {}", version, e))
+        })
+    }
+
+    /// Apply incremental migrations from current version to latest.
+    fn migrate(conn: &rusqlite::Connection) -> ZResult<()> {
+        let current = Self::get_schema_version(conn)?;
+
+        if current < 2 {
+            tracing::info!("Migrating schema v{} -> v2 (sources table)", current);
+            conn.execute_batch(include_str!("../migration_v2.sql"))
+                .map_err(|e| ZtlgrError::Migration(format!("v1->v2 migration failed: {}", e)))?;
+        }
+
+        // Future migrations go here:
+        // if current < 3 { ... }
 
         Ok(())
     }
@@ -608,6 +643,154 @@ impl Database {
 
         Ok(notes)
     }
+
+    // =====================================================================
+    // Source operations
+    // =====================================================================
+
+    /// Insert a new source record.
+    pub fn create_source(&self, source: &Source) -> ZResult<SourceId> {
+        let conn = self.conn.lock();
+
+        conn.execute(
+            "INSERT INTO sources (id, title, origin, content_hash, ingested_at, file_path, file_size, mime_type, metadata)
+             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9)",
+            rusqlite::params![
+                source.id.as_str(),
+                source.title,
+                source.origin,
+                source.content_hash,
+                source.ingested_at.to_rfc3339(),
+                source.file_path,
+                source.file_size as i64,
+                source.mime_type,
+                source.metadata,
+            ],
+        )
+        .map_err(ZtlgrError::Database)?;
+
+        Ok(source.id.clone())
+    }
+
+    /// Find a source by its content hash (for deduplication).
+    pub fn find_source_by_hash(&self, hash: &str) -> ZResult<Option<Source>> {
+        let conn = self.conn.lock();
+
+        let mut stmt = conn
+            .prepare(
+                "SELECT id, title, origin, content_hash, ingested_at, file_path, file_size, mime_type, metadata
+                 FROM sources WHERE content_hash = ?1",
+            )
+            .map_err(ZtlgrError::Database)?;
+
+        let mut rows = stmt
+            .query_map(rusqlite::params![hash], source_from_row)
+            .map_err(ZtlgrError::Database)?;
+
+        match rows.next() {
+            Some(Ok(source)) => Ok(Some(source)),
+            Some(Err(e)) => Err(ZtlgrError::Database(e)),
+            None => Ok(None),
+        }
+    }
+
+    /// Get a source by ID.
+    pub fn get_source(&self, id: &SourceId) -> ZResult<Option<Source>> {
+        let conn = self.conn.lock();
+
+        let mut stmt = conn
+            .prepare(
+                "SELECT id, title, origin, content_hash, ingested_at, file_path, file_size, mime_type, metadata
+                 FROM sources WHERE id = ?1",
+            )
+            .map_err(ZtlgrError::Database)?;
+
+        let mut rows = stmt
+            .query_map(rusqlite::params![id.as_str()], source_from_row)
+            .map_err(ZtlgrError::Database)?;
+
+        match rows.next() {
+            Some(Ok(source)) => Ok(Some(source)),
+            Some(Err(e)) => Err(ZtlgrError::Database(e)),
+            None => Ok(None),
+        }
+    }
+
+    /// List all sources, ordered by ingested_at DESC.
+    pub fn list_sources(&self, limit: usize, offset: usize) -> ZResult<Vec<Source>> {
+        let conn = self.conn.lock();
+
+        let mut stmt = conn
+            .prepare(
+                "SELECT id, title, origin, content_hash, ingested_at, file_path, file_size, mime_type, metadata
+                 FROM sources
+                 ORDER BY ingested_at DESC
+                 LIMIT ?1 OFFSET ?2",
+            )
+            .map_err(ZtlgrError::Database)?;
+
+        let sources = stmt
+            .query_map(
+                rusqlite::params![limit as i32, offset as i32],
+                source_from_row,
+            )
+            .map_err(ZtlgrError::Database)?
+            .collect::<std::result::Result<Vec<_>, _>>()
+            .map_err(ZtlgrError::Database)?;
+
+        Ok(sources)
+    }
+
+    /// Count total sources.
+    pub fn count_sources(&self) -> ZResult<usize> {
+        let conn = self.conn.lock();
+
+        let count: usize = conn
+            .query_row("SELECT COUNT(*) FROM sources", [], |row| row.get(0))
+            .map_err(ZtlgrError::Database)?;
+
+        Ok(count)
+    }
+
+    /// Delete a source by ID.
+    pub fn delete_source(&self, id: &SourceId) -> ZResult<bool> {
+        let conn = self.conn.lock();
+
+        let rows = conn
+            .execute(
+                "DELETE FROM sources WHERE id = ?1",
+                rusqlite::params![id.as_str()],
+            )
+            .map_err(ZtlgrError::Database)?;
+
+        Ok(rows > 0)
+    }
+}
+
+/// Map a database row to a Source struct.
+fn source_from_row(row: &Row<'_>) -> rusqlite::Result<Source> {
+    let id_raw: String = row.get(0)?;
+    let id = SourceId::parse(&id_raw)
+        .map_err(|e| parse_error(0, format!("invalid source id '{}': {}", id_raw, e)))?;
+
+    let ingested_str: String = row.get(4)?;
+    let ingested_at = chrono::DateTime::parse_from_rfc3339(&ingested_str)
+        .map(|dt| dt.with_timezone(&chrono::Utc))
+        .unwrap_or_else(|_| chrono::Utc::now());
+
+    let file_size: i64 = row.get(6)?;
+
+    Ok(Source {
+        id,
+        title: row.get(1)?,
+        origin: row.get(2)?,
+        content_hash: row.get(3)?,
+        ingested_at,
+        file_path: row.get(5)?,
+        file_size: file_size as u64,
+        mime_type: row.get(7)?,
+        metadata: row.get(8)?,
+    })
 }
 
 #[cfg(test)]
@@ -1612,5 +1795,217 @@ mod tests {
             .list_notes_by_type("nonexistent", 100, 0)
             .expect("Failed");
         assert!(notes.is_empty());
+    }
+
+    // =====================================================================
+    // Schema migration tests
+    // =====================================================================
+
+    #[test]
+    fn test_schema_version_is_2() {
+        let (db, _temp) = create_test_db();
+        let conn = db.conn.lock();
+        let version = Database::get_schema_version(&conn).expect("Failed");
+        assert_eq!(version, 2);
+    }
+
+    #[test]
+    fn test_sources_table_exists() {
+        let (db, _temp) = create_test_db();
+        let conn = db.conn.lock();
+        let exists: bool = conn.prepare("SELECT 1 FROM sources LIMIT 0").is_ok();
+        assert!(exists);
+    }
+
+    #[test]
+    fn test_migration_is_idempotent() {
+        let (db, _temp) = create_test_db();
+        // Running initialize again should not fail
+        db.initialize().expect("Re-initialization should succeed");
+        let conn = db.conn.lock();
+        let version = Database::get_schema_version(&conn).expect("Failed");
+        assert_eq!(version, 2);
+    }
+
+    // =====================================================================
+    // Source CRUD tests
+    // =====================================================================
+
+    fn create_test_source(title: &str, hash: &str) -> Source {
+        Source::new(title, hash, format!("raw/{}.md", title), 100)
+    }
+
+    #[test]
+    fn test_create_source() {
+        let (db, _temp) = create_test_db();
+        let source = create_test_source("article", "hash123");
+        let id = db.create_source(&source).expect("Failed to create source");
+        assert_eq!(id.as_str(), source.id.as_str());
+    }
+
+    #[test]
+    fn test_get_source() {
+        let (db, _temp) = create_test_db();
+        let source = create_test_source("paper", "hashABC");
+        db.create_source(&source).expect("Failed");
+
+        let fetched = db.get_source(&source.id).expect("Failed");
+        assert!(fetched.is_some());
+        let fetched = fetched.unwrap();
+        assert_eq!(fetched.title, "paper");
+        assert_eq!(fetched.content_hash, "hashABC");
+        assert_eq!(fetched.file_path, "raw/paper.md");
+        assert_eq!(fetched.file_size, 100);
+    }
+
+    #[test]
+    fn test_get_source_not_found() {
+        let (db, _temp) = create_test_db();
+        let fake_id = SourceId::new();
+        let result = db.get_source(&fake_id).expect("Failed");
+        assert!(result.is_none());
+    }
+
+    #[test]
+    fn test_find_source_by_hash() {
+        let (db, _temp) = create_test_db();
+        let source = create_test_source("doc", "unique_hash");
+        db.create_source(&source).expect("Failed");
+
+        let found = db.find_source_by_hash("unique_hash").expect("Failed");
+        assert!(found.is_some());
+        assert_eq!(found.unwrap().title, "doc");
+    }
+
+    #[test]
+    fn test_find_source_by_hash_not_found() {
+        let (db, _temp) = create_test_db();
+        let found = db.find_source_by_hash("nonexistent").expect("Failed");
+        assert!(found.is_none());
+    }
+
+    #[test]
+    fn test_list_sources_empty() {
+        let (db, _temp) = create_test_db();
+        let sources = db.list_sources(100, 0).expect("Failed");
+        assert!(sources.is_empty());
+    }
+
+    #[test]
+    fn test_list_sources_returns_all() {
+        let (db, _temp) = create_test_db();
+        db.create_source(&create_test_source("a", "h1"))
+            .expect("Failed");
+        db.create_source(&create_test_source("b", "h2"))
+            .expect("Failed");
+        db.create_source(&create_test_source("c", "h3"))
+            .expect("Failed");
+
+        let sources = db.list_sources(100, 0).expect("Failed");
+        assert_eq!(sources.len(), 3);
+    }
+
+    #[test]
+    fn test_list_sources_respects_limit() {
+        let (db, _temp) = create_test_db();
+        db.create_source(&create_test_source("a", "h1"))
+            .expect("Failed");
+        db.create_source(&create_test_source("b", "h2"))
+            .expect("Failed");
+
+        let sources = db.list_sources(1, 0).expect("Failed");
+        assert_eq!(sources.len(), 1);
+    }
+
+    #[test]
+    fn test_list_sources_respects_offset() {
+        let (db, _temp) = create_test_db();
+        db.create_source(&create_test_source("a", "h1"))
+            .expect("Failed");
+        db.create_source(&create_test_source("b", "h2"))
+            .expect("Failed");
+
+        let sources = db.list_sources(100, 1).expect("Failed");
+        assert_eq!(sources.len(), 1);
+    }
+
+    #[test]
+    fn test_count_sources() {
+        let (db, _temp) = create_test_db();
+        assert_eq!(db.count_sources().expect("Failed"), 0);
+
+        db.create_source(&create_test_source("a", "h1"))
+            .expect("Failed");
+        assert_eq!(db.count_sources().expect("Failed"), 1);
+
+        db.create_source(&create_test_source("b", "h2"))
+            .expect("Failed");
+        assert_eq!(db.count_sources().expect("Failed"), 2);
+    }
+
+    #[test]
+    fn test_delete_source() {
+        let (db, _temp) = create_test_db();
+        let source = create_test_source("to_delete", "hash");
+        db.create_source(&source).expect("Failed");
+
+        let deleted = db.delete_source(&source.id).expect("Failed");
+        assert!(deleted);
+        assert_eq!(db.count_sources().expect("Failed"), 0);
+    }
+
+    #[test]
+    fn test_delete_source_not_found() {
+        let (db, _temp) = create_test_db();
+        let fake_id = SourceId::new();
+        let deleted = db.delete_source(&fake_id).expect("Failed");
+        assert!(!deleted);
+    }
+
+    #[test]
+    fn test_create_source_with_origin_and_mime() {
+        let (db, _temp) = create_test_db();
+        let source = Source::new("paper", "hash", "raw/paper.pdf", 5000)
+            .with_origin("https://arxiv.org/paper.pdf")
+            .with_mime_type("application/pdf");
+        db.create_source(&source).expect("Failed");
+
+        let fetched = db.get_source(&source.id).expect("Failed").unwrap();
+        assert_eq!(
+            fetched.origin.as_deref(),
+            Some("https://arxiv.org/paper.pdf")
+        );
+        assert_eq!(fetched.mime_type.as_deref(), Some("application/pdf"));
+    }
+
+    #[test]
+    fn test_create_source_duplicate_hash_fails() {
+        let (db, _temp) = create_test_db();
+        // Two sources with different IDs but same hash should NOT conflict
+        // (hash is not unique in schema, dedup is app-level)
+        let s1 = create_test_source("first", "same_hash");
+        let s2 = create_test_source("second", "same_hash");
+        db.create_source(&s1).expect("Failed");
+        // This should succeed -- no unique constraint on content_hash
+        db.create_source(&s2).expect("Failed");
+        assert_eq!(db.count_sources().expect("Failed"), 2);
+    }
+
+    #[test]
+    fn test_source_roundtrip_preserves_data() {
+        let (db, _temp) = create_test_db();
+        let source = Source::new("Test Doc", "abc123", "raw/test.md", 42)
+            .with_origin("/home/user/test.md")
+            .with_mime_type("text/markdown");
+        db.create_source(&source).expect("Failed");
+
+        let fetched = db.get_source(&source.id).expect("Failed").unwrap();
+        assert_eq!(fetched.id.as_str(), source.id.as_str());
+        assert_eq!(fetched.title, source.title);
+        assert_eq!(fetched.origin, source.origin);
+        assert_eq!(fetched.content_hash, source.content_hash);
+        assert_eq!(fetched.file_path, source.file_path);
+        assert_eq!(fetched.file_size, source.file_size);
+        assert_eq!(fetched.mime_type, source.mime_type);
     }
 }

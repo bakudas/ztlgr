@@ -4,6 +4,7 @@ use std::path::{Path, PathBuf};
 use crate::config::Config;
 use crate::db::Database;
 use crate::error::{Result, ZtlgrError};
+use crate::source::ingest::Ingester;
 use crate::storage::{ActivityLog, FileImporter, FileSync, Format, IndexGenerator, Vault};
 use crate::ui::App;
 
@@ -97,6 +98,20 @@ pub enum Commands {
         #[arg(long)]
         vault: Option<PathBuf>,
     },
+
+    /// Ingest a source file into the raw/ directory
+    Ingest {
+        /// Source file to ingest
+        file: PathBuf,
+
+        /// Title for the source (defaults to filename)
+        #[arg(short, long)]
+        title: Option<String>,
+
+        /// Grimoire path
+        #[arg(long)]
+        vault: Option<PathBuf>,
+    },
 }
 
 pub fn parse_args() -> Cli {
@@ -145,6 +160,14 @@ pub async fn execute(cli: &Cli) -> Result<()> {
             let vault_path = resolve_vault_path(cmd_vault.as_ref(), cli.vault.as_ref())?;
             cmd_index(&vault_path, format)?;
         }
+        Some(Commands::Ingest {
+            file,
+            title,
+            vault: cmd_vault,
+        }) => {
+            let vault_path = resolve_vault_path(cmd_vault.as_ref(), cli.vault.as_ref())?;
+            cmd_ingest(file, title.as_deref(), &vault_path)?;
+        }
         None => {
             run_default_tui(cli).await?;
         }
@@ -188,6 +211,7 @@ fn cmd_new(path: &Path, format_str: &str, no_git: bool) -> Result<()> {
     println!("  {}/index/       - Structure notes (MOCs)", path.display());
     println!("  {}/daily/       - Daily journal", path.display());
     println!("  {}/attachments/ - Images and files", path.display());
+    println!("  {}/raw/         - Source material", path.display());
     println!();
     println!("Run 'ztlgr open {}' to open this grimoire", path.display());
 
@@ -356,6 +380,37 @@ fn cmd_index(vault_path: &Path, format: Format) -> Result<()> {
         "  Written to: {}",
         vault_path.join(".ztlgr").join("index.md").display()
     );
+
+    Ok(())
+}
+
+fn cmd_ingest(source_path: &Path, title: Option<&str>, vault_path: &Path) -> Result<()> {
+    let vault = Vault::new(vault_path.to_path_buf(), Format::Markdown);
+
+    if !vault.exists() {
+        return Err(ZtlgrError::VaultNotFound(vault_path.display().to_string()));
+    }
+
+    let db_path = vault.database_path();
+    let db = Database::new(&db_path)?;
+
+    let ingester = Ingester::new(vault_path.to_path_buf(), db);
+    let result = ingester.ingest_file(source_path, title)?;
+
+    if result.is_new {
+        println!("Ingested source:");
+        println!("  Title: {}", result.source.title);
+        println!("  File: {}", result.source.file_path);
+        println!("  Hash: {}", &result.source.content_hash[..16]);
+        if let Some(mime) = &result.source.mime_type {
+            println!("  Type: {}", mime);
+        }
+        println!("  Size: {} bytes", result.source.file_size);
+    } else {
+        println!("Source already ingested (duplicate content):");
+        println!("  Existing: {}", result.source.file_path);
+        println!("  Hash: {}", &result.source.content_hash[..16]);
+    }
 
     Ok(())
 }
@@ -666,5 +721,88 @@ mod tests {
         cmd_new(&vault_path, "markdown", true).unwrap();
 
         assert!(!vault_path.join(".git").exists());
+    }
+
+    // =====================================================================
+    // Ingest command tests
+    // =====================================================================
+
+    #[test]
+    fn test_cmd_ingest_success() {
+        let temp_dir = TempDir::new().unwrap();
+        let vault_path = temp_dir.path().join("ingest_vault");
+        cmd_new(&vault_path, "markdown", true).unwrap();
+
+        let source_file = temp_dir.path().join("article.md");
+        std::fs::write(&source_file, "# Article\n\nContent here").unwrap();
+
+        let result = cmd_ingest(&source_file, None, &vault_path);
+        assert!(result.is_ok());
+
+        // Verify file was copied to raw/
+        assert!(vault_path.join("raw").exists());
+        let raw_files: Vec<_> = std::fs::read_dir(vault_path.join("raw")).unwrap().collect();
+        assert_eq!(raw_files.len(), 1);
+    }
+
+    #[test]
+    fn test_cmd_ingest_with_title() {
+        let temp_dir = TempDir::new().unwrap();
+        let vault_path = temp_dir.path().join("ingest_title");
+        cmd_new(&vault_path, "markdown", true).unwrap();
+
+        let source_file = temp_dir.path().join("a.md");
+        std::fs::write(&source_file, "content").unwrap();
+
+        let result = cmd_ingest(&source_file, Some("Custom Title"), &vault_path);
+        assert!(result.is_ok());
+    }
+
+    #[test]
+    fn test_cmd_ingest_duplicate() {
+        let temp_dir = TempDir::new().unwrap();
+        let vault_path = temp_dir.path().join("ingest_dup");
+        cmd_new(&vault_path, "markdown", true).unwrap();
+
+        let file1 = temp_dir.path().join("first.md");
+        std::fs::write(&file1, "same content").unwrap();
+
+        let file2 = temp_dir.path().join("second.md");
+        std::fs::write(&file2, "same content").unwrap();
+
+        cmd_ingest(&file1, None, &vault_path).unwrap();
+        let result = cmd_ingest(&file2, None, &vault_path);
+        assert!(result.is_ok()); // Should succeed but report duplicate
+    }
+
+    #[test]
+    fn test_cmd_ingest_nonexistent_vault() {
+        let temp_dir = TempDir::new().unwrap();
+        let vault_path = temp_dir.path().join("nonexistent_ingest");
+        let source_file = temp_dir.path().join("file.md");
+        std::fs::write(&source_file, "content").unwrap();
+
+        let result = cmd_ingest(&source_file, None, &vault_path);
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_cmd_ingest_nonexistent_file() {
+        let temp_dir = TempDir::new().unwrap();
+        let vault_path = temp_dir.path().join("ingest_nofile");
+        cmd_new(&vault_path, "markdown", true).unwrap();
+
+        let result = cmd_ingest(Path::new("/nonexistent/file.md"), None, &vault_path);
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_cmd_new_creates_raw_dir() {
+        let temp_dir = TempDir::new().unwrap();
+        let vault_path = temp_dir.path().join("raw_dir_vault");
+
+        cmd_new(&vault_path, "markdown", true).unwrap();
+
+        assert!(vault_path.join("raw").exists());
     }
 }

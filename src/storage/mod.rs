@@ -30,6 +30,7 @@ pub const VAULT_DIRS: &[&str] = &[
     "reference",
     "index",
     "attachments",
+    "raw",
 ];
 
 /// Trait for file-based storage backends
@@ -148,6 +149,9 @@ pub struct VaultDirectories {
 
     /// Attachments directory
     pub attachments: PathBuf,
+
+    /// Raw source material directory
+    pub raw: PathBuf,
 }
 
 impl Default for VaultDirectories {
@@ -160,6 +164,7 @@ impl Default for VaultDirectories {
             reference: PathBuf::from("reference"),
             index: PathBuf::from("index"),
             attachments: PathBuf::from("attachments"),
+            raw: PathBuf::from("raw"),
         }
     }
 }
@@ -183,6 +188,7 @@ impl Vault {
         std::fs::create_dir_all(self.path.join(&self.directories.reference))?;
         std::fs::create_dir_all(self.path.join(&self.directories.index))?;
         std::fs::create_dir_all(self.path.join(&self.directories.attachments))?;
+        std::fs::create_dir_all(self.path.join(&self.directories.raw))?;
 
         // Create .obsidian directory (for compatibility)
         std::fs::create_dir_all(self.path.join(".obsidian"))?;
@@ -245,6 +251,7 @@ Your notes live as plain {1} files on your machine. No cloud, no telemetry, no l
 - `reference/` - Reference notes with external sources
 - `index/` - Index/structure notes (MOCs)
 - `attachments/` - Images and other attachments
+- `raw/` - Immutable source material (ingested files)
 
 ## Usage
 
