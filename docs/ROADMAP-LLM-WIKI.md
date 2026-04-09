@@ -2,7 +2,7 @@
 
 **Branch:** `feat/llm-wiki-integration`
 **Created:** April 9, 2026
-**Status:** Planning
+**Status:** Phase 5 Complete, Phase 6 Next
 
 ---
 
@@ -142,25 +142,25 @@ reads instruction files.
 
 ## Implementation Phases
 
-### Phase 0: Cleanup & Foundation (this PR)
+### Phase 0: Cleanup & Foundation ✅
 **Effort:** Small | **Impact:** Clears the path
 
-- [ ] Remove aspirational "multi-agent" references from README, CONTRIBUTING, CHANGELOG
-- [ ] Update docs/STATUS.md with new direction
-- [ ] Create this roadmap document
-- [ ] Update AGENTS.md with LLM Wiki context
+- [x] Remove aspirational "multi-agent" references from README, CONTRIBUTING, CHANGELOG
+- [x] Update docs/STATUS.md with new direction
+- [x] Create this roadmap document
+- [x] Update AGENTS.md with LLM Wiki context
 
-### Phase 1: Index & Log System
+### Phase 1: Index & Log System ✅
 **Effort:** Small | **Impact:** Medium
 **Why first:** Zero external dependencies, pure Rust, immediately useful even without LLM.
 Gives both humans and LLMs a navigable map of the vault.
 
-- [ ] `index.md` auto-generation from DB (grouped by type, one-line summaries)
-- [ ] `log.md` append-only activity log (ingests, syncs, queries)
-- [ ] `ztlgr index` CLI command to generate/update index
-- [ ] Hook into `FileSync` to regenerate on sync
-- [ ] New module: `src/storage/index_generator.rs`
-- [ ] New module: `src/storage/activity_log.rs`
+- [x] `index.md` auto-generation from DB (grouped by type, one-line summaries)
+- [x] `log.md` append-only activity log (ingests, syncs, queries)
+- [x] `ztlgr index` CLI command to generate/update index
+- [x] Hook into `FileSync` to regenerate on sync
+- [x] New module: `src/storage/index_generator.rs`
+- [x] New module: `src/storage/activity_log.rs`
 
 **index.md format:**
 ```markdown
@@ -201,86 +201,86 @@ Gives both humans and LLMs a navigable map of the vault.
 - Pages updated: 2 (Knowledge Management MOC, index.md)
 ```
 
-### Phase 2: Raw Sources Layer
+### Phase 2: Raw Sources Layer ✅
 **Effort:** Medium | **Impact:** High
 **Why second:** Establishes the foundation the LLM Wiki pattern requires -- a separation
 between immutable input and mutable synthesis.
 
-- [ ] Add `raw/` to `VAULT_DIRS` and `Vault::initialize()`
-- [ ] New DB table: `sources` (id, title, origin, content_hash, ingested_at, file_path)
-- [ ] Schema migration system (v1 -> v2)
-- [ ] `ztlgr ingest <file>` CLI command (copies to `raw/`, registers in DB)
+- [x] Add `raw/` to `VAULT_DIRS` and `Vault::initialize()`
+- [x] New DB table: `sources` (id, title, origin, content_hash, ingested_at, file_path)
+- [x] Schema migration system (v1 -> v2)
+- [x] `ztlgr ingest <file>` CLI command (copies to `raw/`, registers in DB)
 - [ ] `ztlgr ingest --url <url>` (downloads article as markdown, stores in `raw/`)
-- [ ] Source metadata in frontmatter (origin URL, author, date, hash)
-- [ ] Sources appear in index.md but are read-only in editor
-- [ ] New module: `src/source/mod.rs` (Source struct, SourceId)
-- [ ] New module: `src/source/ingest.rs` (ingestion pipeline)
+- [x] Source metadata in frontmatter (origin URL, author, date, hash)
+- [x] Sources appear in index.md but are read-only in editor
+- [x] New module: `src/source/mod.rs` (Source struct, SourceId)
+- [x] New module: `src/source/ingest.rs` (ingestion pipeline)
 
 **Dependencies:** Phase 1 (for index/log updates)
 
-### Phase 3: .skills/ Infrastructure
+### Phase 3: .skills/ Infrastructure ✅
 **Effort:** Medium | **Impact:** High
 **Why third:** This is what makes the vault LLM-operable. Without `.skills/`, the LLM
 has no instructions for how to maintain the wiki.
 
-- [ ] `ztlgr init-skills` CLI command (generates `.skills/` with defaults)
-- [ ] Default templates for all workflow files
-- [ ] Vault-aware defaults (detect note types, count stats, populate domain.md)
-- [ ] `.skills/conventions.md` generated from current vault config
-- [ ] Integration with `ztlgr new` (offer to create `.skills/` during vault creation)
-- [ ] New module: `src/skills/mod.rs` (Skills struct, loader)
-- [ ] New module: `src/skills/generator.rs` (default content generation)
+- [x] `ztlgr init-skills` CLI command (generates `.skills/` with defaults)
+- [x] Default templates for all workflow files
+- [x] Vault-aware defaults (detect note types, count stats, populate domain.md)
+- [x] `.skills/conventions.md` generated from current vault config
+- [x] Integration with `ztlgr new` (offer to create `.skills/` during vault creation)
+- [x] New module: `src/skills/mod.rs` (Skills struct, loader)
+- [x] New module: `src/skills/generator.rs` (default content generation)
 
 **Dependencies:** Phase 2 (sources referenced in workflows)
 
-### Phase 4: LLM Provider Abstraction
+### Phase 4: LLM Provider Abstraction ✅
 **Effort:** Large | **Impact:** Very High
 **Why fourth:** Now that the vault has sources, index, log, and skills, we can add
 the LLM as the engine that operates on all of it.
 
-- [ ] LLM provider trait: `fn complete(prompt, context) -> Result<String>`
-- [ ] OpenAI provider (GPT-4o, o3)
-- [ ] Anthropic provider (Claude)
-- [ ] Ollama provider (local models)
-- [ ] Config section in `.ztlgr/config.toml`: `[llm]` with provider, model, api_key_env
-- [ ] API key management (env vars, not stored in vault files)
-- [ ] Token/cost tracking in log.md
-- [ ] New module: `src/llm/mod.rs`
-- [ ] New module: `src/llm/provider.rs` (trait + impls)
-- [ ] New module: `src/llm/context.rs` (context building from wiki pages)
-- [ ] New dependency: `reqwest` for HTTP
+- [x] LLM provider trait: `fn complete(prompt, context) -> Result<String>`
+- [x] OpenAI provider (GPT-4o, o3)
+- [x] Anthropic provider (Claude)
+- [x] Ollama provider (local models)
+- [x] Config section in `.ztlgr/config.toml`: `[llm]` with provider, model, api_key_env
+- [x] API key management (env vars, not stored in vault files)
+- [x] Token/cost tracking in log.md
+- [x] New module: `src/llm/mod.rs`
+- [x] New module: `src/llm/provider.rs` (trait + impls)
+- [x] New module: `src/llm/context.rs` (context building from wiki pages)
+- [x] New dependency: `reqwest` for HTTP
 
 **Dependencies:** Phase 3 (skills provide the system prompt)
 
-### Phase 5: LLM Workflows (Ingest, Query, Lint)
+### Phase 5: LLM Workflows (Ingest, Query, Lint) ✅
 **Effort:** Large | **Impact:** Very High
 **Why fifth:** The core value -- automated wiki maintenance.
 
-#### 5A: Ingest Workflow
-- [ ] Read source from `raw/`, build prompt from `.skills/workflows/ingest.md`
-- [ ] LLM generates summary page (filed in `literature/`)
-- [ ] LLM identifies entities/concepts, creates or updates pages
-- [ ] LLM updates `index.md` with new entries
-- [ ] LLM appends to `log.md`
-- [ ] `ztlgr ingest <file> --process` CLI (ingest + LLM processing)
+#### 5A: Ingest Workflow ✅
+- [x] Read source from `raw/`, build prompt from `.skills/workflows/ingest.md`
+- [x] LLM generates summary page (filed in `literature/`)
+- [x] LLM identifies entities/concepts, creates or updates pages
+- [x] LLM updates `index.md` with new entries
+- [x] LLM appends to `log.md`
+- [x] `ztlgr ingest <file> --process` CLI (ingest + LLM processing)
 - [ ] TUI command: `:ingest <file>`
 
-#### 5B: Query Workflow
-- [ ] Read index.md to find relevant pages
-- [ ] Use FTS5 search as fallback/supplement
-- [ ] Build context from relevant wiki pages
-- [ ] LLM synthesizes answer with `[[wiki-link]]` citations
+#### 5B: Query Workflow ✅
+- [x] Read index.md to find relevant pages
+- [x] Use FTS5 search as fallback/supplement
+- [x] Build context from relevant wiki pages
+- [x] LLM synthesizes answer with `[[wiki-link]]` citations
 - [ ] Option to file answer as new note
-- [ ] `ztlgr ask "<question>"` CLI
+- [x] `ztlgr ask "<question>"` CLI
 - [ ] TUI command: `:ask <question>`
 
-#### 5C: Lint Workflow
-- [ ] Detect orphan notes (no inbound links)
-- [ ] Find notes referencing deleted/missing targets
+#### 5C: Lint Workflow ✅
+- [x] Detect orphan notes (no inbound links)
+- [x] Find notes referencing deleted/missing targets
 - [ ] Identify stale content (old `last_reviewed` dates)
-- [ ] Suggest missing cross-references
-- [ ] Flag potential contradictions
-- [ ] `ztlgr lint` CLI
+- [x] Suggest missing cross-references
+- [x] Flag potential contradictions
+- [x] `ztlgr lint` CLI
 - [ ] TUI command: `:lint`
 
 **Dependencies:** Phase 4 (LLM provider)

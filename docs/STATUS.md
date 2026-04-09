@@ -3,7 +3,7 @@
 **Data Atualização:** 9 de Abril de 2026  
 **Versão:** 0.5.0 (Knowledge Graph Visualization)  
 **Status Geral:** 🟢 ACTIVE DEVELOPMENT  
-**Testes:** 727 passing (100% success rate)
+**Testes:** 797 passing (100% success rate)
 
 ---
 
@@ -13,10 +13,17 @@
 - ✅ **Infrastructure**: 100% (setup, DB, storage, themes)
 - ✅ **Core Features**: 100% (editor, search, command, modals)
 - ✅ **Link System**: 100% (parsing + validation + highlighting + autocomplete + following + backlinks + DB integration)
-- ✅ **CLI Interface**: 100% (new, open, search, import, sync)
+- ✅ **CLI Interface**: 100% (new, open, search, import, sync, index, ingest, ask, lint, init-skills)
 - ✅ **Markdown Preview**: 100% (blockquotes, tables, task lists, footnotes, images, wiki-links)
 - ✅ **Inter-note Links**: 100% (backlinks pane, link following, navigation history, autocomplete, extract & store)
 - ✅ **Knowledge Graph**: 100% (force-directed layout, Canvas rendering, pan/zoom, node selection, navigation)
+- ✅ **LLM Wiki Phase 0**: 100% (cleanup, roadmap, .skills/ schema)
+- ✅ **LLM Wiki Phase 1**: 100% (index.md generation, activity log)
+- ✅ **LLM Wiki Phase 2**: 100% (raw sources, ingest pipeline, schema migration)
+- ✅ **LLM Wiki Phase 3**: 100% (.skills/ infrastructure, generator, init-skills CLI)
+- ✅ **LLM Wiki Phase 4**: 100% (LLM provider trait, Ollama/OpenAI/Anthropic, context builder, usage tracker)
+- ✅ **LLM Wiki Phase 5**: 100% (workflow engine, ingest/query/lint workflows, ask/lint CLI)
+- 🟡 **LLM Wiki Phase 6**: 0% (MCP server -- next)
 
 ---
 
@@ -255,6 +262,9 @@ Comprehensive help system accessible via `?` or `:help`:
 | `ztlgr sync` | Sincroniza grimoire com database |
 | `ztlgr index` | Gera/atualiza index.md do grimoire |
 | `ztlgr ingest <file>` | Ingere arquivo fonte no `raw/` |
+| `ztlgr ingest --process` | Ingere + processa com LLM (gera nota de literatura) |
+| `ztlgr ask "<question>"` | Consulta o grimoire via LLM |
+| `ztlgr lint [--full]` | Lint local (sem LLM) ou completo (com LLM) |
 | `ztlgr init-skills` | Gera/valida `.skills/` no grimoire |
 | `ztlgr --help` | Ajuda completa |
 | `ztlgr --version` | Versão |
@@ -398,14 +408,25 @@ entity pages) ao invés de re-derivar conhecimento a cada query.
 - [x] API keys read from env vars, NEVER stored in config files
 - [x] Ollama is default (local-first, no API key needed)
 
-### Phase 5: LLM Workflows (Ingest, Query, Lint)
-- [ ] `:ingest` / `ztlgr ingest --process`
-- [ ] `:ask` / `ztlgr ask "<question>"`
-- [ ] `:lint` / `ztlgr lint`
+### ✅ Phase 5: LLM Workflows (+70 tests, 797 total)
+- [x] `src/llm/workflow.rs` — `WorkflowEngine` with manual `Debug` impl, `build_context()`, `execute()`, `finish()`, `require_llm_enabled()`, `read_source_content()`, `truncate_to_token_budget()` (21 tests)
+- [x] `src/llm/workflows/ingest.rs` — `IngestWorkflow::process()`: reads source from `raw/`, LLM generates literature note, writes to `literature/`, regenerates index (11 tests)
+- [x] `src/llm/workflows/query.rs` — `QueryWorkflow::ask()`: FTS5 search + index.md context, LLM synthesizes answer with `[[wiki-link]]` citations (13 tests)
+- [x] `src/llm/workflows/lint.rs` — `LintWorkflow::local_lint()` (no LLM) + `full_lint()` (LLM-assisted): orphan notes, short notes, unprocessed sources, `LintReport` with `to_markdown()` (19 tests)
+- [x] `ztlgr ingest --process` — Ingest + LLM processing in one step (`cmd_ingest` now async)
+- [x] `ztlgr ask "<question>"` — CLI command for querying the grimoire via LLM
+- [x] `ztlgr lint [--full]` — Local lint (no LLM) or full lint (LLM-assisted)
+- [x] `load_config()` helper for consistent config loading across commands
+- [x] `#[serde(default)]` added to `Config` and `LlmConfig` for partial TOML support
+- [x] CLI tests: config loading, ask, lint commands (8 new tests)
+- [x] Help modal updated with `--process`, `ask`, `lint` commands
 
 ### Phase 6: MCP Server
-- [ ] `ztlgr mcp` -- expõe vault como MCP tools
-- [ ] Tools: search, get_note, create_note, get_backlinks, ingest
+- [ ] `ztlgr mcp` -- expõe vault como MCP tools (JSON-RPC over stdio)
+- [ ] Tools: search, get_note, list_notes, create_note, update_note
+- [ ] Tools: get_backlinks, get_graph, ingest_source
+- [ ] Tools: read_index, read_log, read_skills
+- [ ] `src/mcp/mod.rs`, `src/mcp/server.rs`, `src/mcp/tools.rs`
 
 ### Backlog (mantido do sprint anterior)
 - [ ] Graph filtering by note type, tags, or link depth
@@ -464,6 +485,16 @@ ztlgr ingest ~/papers/article.pdf --title "My Article" --vault ~/my-notes
 
 # Gerar/validar .skills/ (preenche arquivos faltantes)
 ztlgr init-skills --vault ~/my-notes
+
+# Consultar o grimoire via LLM
+ztlgr ask "What is the Zettelkasten method?" --vault ~/my-notes
+
+# Lint local (sem LLM) ou completo (com LLM)
+ztlgr lint --vault ~/my-notes
+ztlgr lint --full --vault ~/my-notes
+
+# Ingerir + processar com LLM (gera nota de literatura)
+ztlgr ingest ~/papers/article.pdf --process --vault ~/my-notes
 ```
 
 ---
@@ -489,7 +520,17 @@ ztlgr init-skills --vault ~/my-notes
 ┌─────────────────────────────────────────────┐
 │              CLI (clap)                          │
 │  new | open | search | import | sync | index     │
-│  ingest | init-skills                             │
+│  ingest | init-skills | ask | lint                │
+└─────────────────────────────────────────────┘
+                 │
+                 ▼
+┌─────────────────────────────────────────────┐
+│        LLM Workflow Layer (Phase 5)              │
+│  ┌──────────┬──────────┬────────────────┐   │
+│  │  Ingest  │  Query   │     Lint       │   │
+│  │ Workflow │ Workflow  │   Workflow     │   │
+│  └──────────┴──────────┴────────────────┘   │
+│        WorkflowEngine (orchestrator)             │
 └─────────────────────────────────────────────┘
                  │
                  ▼
@@ -534,5 +575,5 @@ ztlgr init-skills --vault ~/my-notes
 
 ---
 
-**Status**: 🟢 v0.5.0 Released - LLM Wiki Phase 4 Complete (LLM Provider Abstraction)  
-**Próximo**: Phase 5 - LLM Workflows (`:ingest --process`, `:ask`, `:lint` commands).
+**Status**: 🟢 v0.5.0 Released - LLM Wiki Phase 5 Complete (LLM Workflows)  
+**Próximo**: Phase 6 - MCP Server (`ztlgr mcp` -- expose grimoire as MCP tools for external LLM agents).
