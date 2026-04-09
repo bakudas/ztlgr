@@ -5,6 +5,7 @@ use crate::config::Config;
 use crate::db::Database;
 use crate::error::{Result, ZtlgrError};
 use crate::llm::workflows::{IngestWorkflow, LintWorkflow, QueryWorkflow};
+use crate::mcp::server::{run_server, McpServerConfig};
 use crate::skills::generator::SkillsGenerator;
 use crate::skills::Skills;
 use crate::source::ingest::Ingester;
@@ -151,6 +152,13 @@ pub enum Commands {
         #[arg(long)]
         vault: Option<PathBuf>,
     },
+
+    /// Start MCP server (Model Context Protocol) over stdio
+    Mcp {
+        /// Grimoire path
+        #[arg(long)]
+        vault: Option<PathBuf>,
+    },
 }
 
 pub fn parse_args() -> Cli {
@@ -238,6 +246,10 @@ pub async fn execute(cli: &Cli) -> Result<()> {
         Some(Commands::InitSkills { vault: cmd_vault }) => {
             let vault_path = resolve_vault_path(cmd_vault.as_ref(), cli.vault.as_ref())?;
             cmd_init_skills(&vault_path)?;
+        }
+        Some(Commands::Mcp { vault: cmd_vault }) => {
+            let vault_path = resolve_vault_path(cmd_vault.as_ref(), cli.vault.as_ref())?;
+            cmd_mcp(&vault_path, format)?;
         }
         None => {
             run_default_tui(cli).await?;
@@ -666,6 +678,21 @@ fn cmd_init_skills(vault_path: &Path) -> Result<()> {
     println!("Customize these files to match your grimoire's domain.");
 
     Ok(())
+}
+
+fn cmd_mcp(vault_path: &Path, format: Format) -> Result<()> {
+    let vault = Vault::new(vault_path.to_path_buf(), format);
+
+    if !vault.exists() {
+        return Err(ZtlgrError::VaultNotFound(vault_path.display().to_string()));
+    }
+
+    let config = McpServerConfig {
+        vault_path: vault_path.to_path_buf(),
+        format,
+    };
+
+    run_server(config)
 }
 
 async fn run_default_tui(cli: &Cli) -> Result<()> {

@@ -67,6 +67,9 @@ pub enum ZtlgrError {
 
     #[error("LLM provider error: {0}")]
     LlmProvider(String),
+
+    #[error("MCP server error: {0}")]
+    Mcp(String),
 }
 
 pub type Result<T> = std::result::Result<T, ZtlgrError>;

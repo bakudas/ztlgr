@@ -5,6 +5,7 @@ pub mod error;
 pub mod graph;
 pub mod link;
 pub mod llm;
+pub mod mcp;
 pub mod note;
 pub mod setup;
 pub mod skills;

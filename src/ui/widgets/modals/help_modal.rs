@@ -309,6 +309,10 @@ impl HelpModal {
             Span::styled("  Generate .skills/ for LLMs", fg_style),
         ]));
         lines.push(Line::from(vec![
+            Span::styled("ztlgr mcp              ", key_style),
+            Span::styled("  Start MCP server (stdio)", fg_style),
+        ]));
+        lines.push(Line::from(vec![
             Span::styled("ztlgr --help           ", key_style),
             Span::styled("  Show CLI help", fg_style),
         ]));
