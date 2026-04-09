@@ -293,6 +293,10 @@ impl HelpModal {
             Span::styled("  Ingest source into raw/", fg_style),
         ]));
         lines.push(Line::from(vec![
+            Span::styled("ztlgr init-skills      ", key_style),
+            Span::styled("  Generate .skills/ for LLMs", fg_style),
+        ]));
+        lines.push(Line::from(vec![
             Span::styled("ztlgr --help           ", key_style),
             Span::styled("  Show CLI help", fg_style),
         ]));

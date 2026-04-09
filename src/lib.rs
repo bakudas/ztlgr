@@ -6,6 +6,7 @@ pub mod graph;
 pub mod link;
 pub mod note;
 pub mod setup;
+pub mod skills;
 pub mod source;
 pub mod storage;
 pub mod ui;
@@ -16,6 +17,7 @@ pub use db::Database;
 pub use error::{Result, ZtlgrError};
 pub use link::{LinkError, LinkFormat, LinkInfo, LinkTarget};
 pub use note::{Note, NoteId, NoteType, ZettelId};
+pub use skills::Skills;
 pub use source::{Source, SourceId};
 pub use storage::{Format, MarkdownStorage, OrgStorage, Storage, Vault};
 

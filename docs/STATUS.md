@@ -3,7 +3,7 @@
 **Data Atualização:** 9 de Abril de 2026  
 **Versão:** 0.5.0 (Knowledge Graph Visualization)  
 **Status Geral:** 🟢 ACTIVE DEVELOPMENT  
-**Testes:** 552 passing (100% success rate)
+**Testes:** 605 passing (100% success rate)
 
 ---
 
@@ -255,6 +255,7 @@ Comprehensive help system accessible via `?` or `:help`:
 | `ztlgr sync` | Sincroniza grimoire com database |
 | `ztlgr index` | Gera/atualiza index.md do grimoire |
 | `ztlgr ingest <file>` | Ingere arquivo fonte no `raw/` |
+| `ztlgr init-skills` | Gera/valida `.skills/` no grimoire |
 | `ztlgr --help` | Ajuda completa |
 | `ztlgr --version` | Versão |
 
@@ -263,6 +264,8 @@ Comprehensive help system accessible via `?` or `:help`:
 - `-f, --format <fmt>` - Formato: `markdown` ou `org`
 - `-c, --config <path>` - Arquivo de configuração (env: `ZTLGR_CONFIG`)
 - `-v, --verbose` - Nível de verbosidade
+- `--no-git` - Não inicializar repositório git (apenas `ztlgr new`)
+- `--no-skills` - Não gerar `.skills/` (apenas `ztlgr new`)
 
 **Comportamento:**
 - Sem argumentos → Setup Wizard interativo (compatibilidade retroativa)
@@ -368,16 +371,16 @@ entity pages) ao invés de re-derivar conhecimento a cada query.
 - [x] Error variants: `SourceNotFound`, `Ingest`, `Migration`
 - [x] `sha2` crate added for content hashing
 
-### Phase 3: .skills/ Infrastructure (próximo)
-- [ ] Diretório `raw/` no vault para fontes imutáveis
-- [ ] Tabela `sources` no DB (id, title, origin, hash, ingested_at)
-- [ ] `ztlgr ingest <file>` CLI command
-- [ ] Schema migration v1 -> v2
-
-### Phase 3: .skills/ Infrastructure
-- [ ] `ztlgr init-skills` CLI command
-- [ ] Templates padrão gerados automaticamente
-- [ ] Integração com `ztlgr new`
+### ✅ Phase 3: .skills/ Infrastructure (+53 tests, 605 total)
+- [x] `src/skills/mod.rs` — `Skills` struct, `ValidationReport`, loader, file readers, `list_files()` (17 tests)
+- [x] `src/skills/generator.rs` — `SkillsGenerator`, 12 content generators, `GenerateResult` with created/skipped (28 tests)
+- [x] `ztlgr init-skills --vault <path>` CLI command (validates, fills missing files)
+- [x] `--no-skills` flag for `ztlgr new` (skip .skills/ generation)
+- [x] Default .skills/ generation during `ztlgr new` and setup wizard
+- [x] `prompt_init_skills()` in setup wizard (Y/n prompt)
+- [x] Error variant: `Skills(String)`
+- [x] CLI tests: skills by default, skip with flag, vault name in skills, init-skills success, nonexistent vault, idempotent, fills missing files (7 new tests)
+- [x] Help modal updated with `init-skills` command
 
 ### Phase 4: LLM Provider Abstraction
 - [ ] Trait `LlmProvider` (OpenAI, Anthropic, Ollama)
@@ -447,6 +450,9 @@ ztlgr index --vault ~/my-notes
 # Ingerir arquivo fonte (copia para raw/, registra no DB)
 ztlgr ingest ~/papers/article.pdf --vault ~/my-notes
 ztlgr ingest ~/papers/article.pdf --title "My Article" --vault ~/my-notes
+
+# Gerar/validar .skills/ (preenche arquivos faltantes)
+ztlgr init-skills --vault ~/my-notes
 ```
 
 ---
@@ -472,7 +478,7 @@ ztlgr ingest ~/papers/article.pdf --title "My Article" --vault ~/my-notes
 ┌─────────────────────────────────────────────┐
 │              CLI (clap)                          │
 │  new | open | search | import | sync | index     │
-│  ingest                                          │
+│  ingest | init-skills                             │
 └─────────────────────────────────────────────┘
                  │
                  ▼
@@ -498,12 +504,13 @@ ztlgr ingest ~/papers/article.pdf --title "My Article" --vault ~/my-notes
      │   File System                           │
      │   ~/vault/permanent/*.md                │
      │   ~/vault/inbox/*.md                    │
-     │   ~/vault/raw/* (immutable sources)     │
-     │   ~/vault/.ztlgr/vault.db               │
+      │   ~/vault/raw/* (immutable sources)     │
+      │   ~/vault/.skills/* (LLM agent schema)  │
+      │   ~/vault/.ztlgr/vault.db               │
      └────────────────────────────────────────┘
 ```
 
 ---
 
-**Status**: 🟢 v0.5.0 Released - LLM Wiki Phase 2 Complete (Raw Sources Layer)  
-**Próximo**: Phase 3 - .skills/ Infrastructure (init-skills CLI, templates, integration with vault init).
+**Status**: 🟢 v0.5.0 Released - LLM Wiki Phase 3 Complete (.skills/ Infrastructure)  
+**Próximo**: Phase 4 - LLM Provider Abstraction (LlmProvider trait, [llm] config, Ollama first provider).

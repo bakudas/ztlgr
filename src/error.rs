@@ -58,6 +58,9 @@ pub enum ZtlgrError {
 
     #[error("Migration error: {0}")]
     Migration(String),
+
+    #[error("Skills error: {0}")]
+    Skills(String),
 }
 
 pub type Result<T> = std::result::Result<T, ZtlgrError>;

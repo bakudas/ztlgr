@@ -1,5 +1,6 @@
 use crate::config::Config;
 use crate::error::ZtlgrError;
+use crate::skills::generator::SkillsGenerator;
 use crate::storage::{Format, Vault};
 use std::io::{self, BufRead, Write};
 use std::path::PathBuf;
@@ -72,6 +73,27 @@ impl SetupWizard {
                     Ok(false) => println!("  git not found, skipping (install git to enable)"),
                     Err(e) => {
                         eprintln!("  Warning: git init failed: {}", e);
+                    }
+                }
+            }
+
+            // Prompt for .skills/ generation
+            let init_skills = self.prompt_init_skills()?;
+            if init_skills {
+                let vault_name = vault_path
+                    .file_name()
+                    .and_then(|n| n.to_str())
+                    .unwrap_or("grimoire");
+                let generator = SkillsGenerator::new(vault_name);
+                match generator.generate(&vault_path) {
+                    Ok(result) => {
+                        println!(
+                            "  .skills/ generated ({} files for LLM agents)",
+                            result.files_created
+                        );
+                    }
+                    Err(e) => {
+                        eprintln!("  Warning: .skills/ generation failed: {}", e);
                     }
                 }
             }
@@ -196,6 +218,28 @@ impl SetupWizard {
     fn prompt_git_init(&self) -> Result<bool, ZtlgrError> {
         println!();
         println!("Initialize git repository for version history?");
+        print!("(Y/n): ");
+        io::stdout()
+            .flush()
+            .map_err(|e| ZtlgrError::Config(format!("IO error: {}", e)))?;
+
+        let stdin = io::stdin();
+        let mut input = String::new();
+        stdin
+            .lock()
+            .read_line(&mut input)
+            .map_err(|e| ZtlgrError::Config(format!("IO error: {}", e)))?;
+
+        let input = input.trim().to_lowercase();
+        // Default is yes (Y/n) -- empty or 'y' means yes
+        Ok(input.is_empty() || input.starts_with('y'))
+    }
+
+    fn prompt_init_skills(&self) -> Result<bool, ZtlgrError> {
+        println!();
+        println!("Generate .skills/ directory for LLM agents?");
+        println!("  This provides workflows, templates, and conventions");
+        println!("  that help LLMs maintain your grimoire. You can customize later.");
         print!("(Y/n): ");
         io::stdout()
             .flush()

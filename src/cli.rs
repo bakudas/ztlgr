@@ -4,6 +4,8 @@ use std::path::{Path, PathBuf};
 use crate::config::Config;
 use crate::db::Database;
 use crate::error::{Result, ZtlgrError};
+use crate::skills::generator::SkillsGenerator;
+use crate::skills::Skills;
 use crate::source::ingest::Ingester;
 use crate::storage::{ActivityLog, FileImporter, FileSync, Format, IndexGenerator, Vault};
 use crate::ui::App;
@@ -45,6 +47,10 @@ pub enum Commands {
         /// Skip git repository initialization
         #[arg(long)]
         no_git: bool,
+
+        /// Skip .skills/ directory generation
+        #[arg(long)]
+        no_skills: bool,
     },
 
     /// Open an existing grimoire in the TUI
@@ -112,6 +118,13 @@ pub enum Commands {
         #[arg(long)]
         vault: Option<PathBuf>,
     },
+
+    /// Generate .skills/ directory for LLM agents
+    InitSkills {
+        /// Grimoire path
+        #[arg(long)]
+        vault: Option<PathBuf>,
+    },
 }
 
 pub fn parse_args() -> Cli {
@@ -126,8 +139,14 @@ pub async fn execute(cli: &Cli) -> Result<()> {
             path,
             format: cmd_format,
             no_git,
+            no_skills,
         }) => {
-            cmd_new(path, cmd_format.as_deref().unwrap_or(&cli.format), *no_git)?;
+            cmd_new(
+                path,
+                cmd_format.as_deref().unwrap_or(&cli.format),
+                *no_git,
+                *no_skills,
+            )?;
         }
         Some(Commands::Open { path }) => {
             let vault_path = resolve_vault_path(path.as_ref(), cli.vault.as_ref())?;
@@ -168,6 +187,10 @@ pub async fn execute(cli: &Cli) -> Result<()> {
             let vault_path = resolve_vault_path(cmd_vault.as_ref(), cli.vault.as_ref())?;
             cmd_ingest(file, title.as_deref(), &vault_path)?;
         }
+        Some(Commands::InitSkills { vault: cmd_vault }) => {
+            let vault_path = resolve_vault_path(cmd_vault.as_ref(), cli.vault.as_ref())?;
+            cmd_init_skills(&vault_path)?;
+        }
         None => {
             run_default_tui(cli).await?;
         }
@@ -176,7 +199,7 @@ pub async fn execute(cli: &Cli) -> Result<()> {
     Ok(())
 }
 
-fn cmd_new(path: &Path, format_str: &str, no_git: bool) -> Result<()> {
+fn cmd_new(path: &Path, format_str: &str, no_git: bool, no_skills: bool) -> Result<()> {
     let format = parse_format(format_str);
     let vault = Vault::new(path.to_path_buf(), format);
 
@@ -185,6 +208,23 @@ fn cmd_new(path: &Path, format_str: &str, no_git: bool) -> Result<()> {
     }
 
     vault.initialize()?;
+
+    // Generate .skills/ (unless --no-skills)
+    if !no_skills {
+        let vault_name = path
+            .file_name()
+            .and_then(|n| n.to_str())
+            .unwrap_or("grimoire");
+        let generator = SkillsGenerator::new(vault_name);
+        match generator.generate(path) {
+            Ok(result) => {
+                println!("  .skills/ generated ({} files)", result.files_created);
+            }
+            Err(e) => {
+                eprintln!("  Warning: .skills/ generation failed: {}", e);
+            }
+        }
+    }
 
     // Git initialization (unless --no-git)
     if !no_git {
@@ -212,6 +252,7 @@ fn cmd_new(path: &Path, format_str: &str, no_git: bool) -> Result<()> {
     println!("  {}/daily/       - Daily journal", path.display());
     println!("  {}/attachments/ - Images and files", path.display());
     println!("  {}/raw/         - Source material", path.display());
+    println!("  {}/.skills/     - LLM agent schema", path.display());
     println!();
     println!("Run 'ztlgr open {}' to open this grimoire", path.display());
 
@@ -415,6 +456,48 @@ fn cmd_ingest(source_path: &Path, title: Option<&str>, vault_path: &Path) -> Res
     Ok(())
 }
 
+fn cmd_init_skills(vault_path: &Path) -> Result<()> {
+    let vault = Vault::new(vault_path.to_path_buf(), Format::Markdown);
+
+    if !vault.exists() {
+        return Err(ZtlgrError::VaultNotFound(vault_path.display().to_string()));
+    }
+
+    let skills = Skills::new(vault_path);
+    let vault_name = vault_path
+        .file_name()
+        .and_then(|n| n.to_str())
+        .unwrap_or("grimoire");
+    let generator = SkillsGenerator::new(vault_name);
+    let result = generator.generate(vault_path)?;
+
+    println!(".skills/ initialized:");
+    println!("  Files created: {}", result.files_created);
+    println!("  Files skipped: {}", result.files_skipped);
+
+    let report = skills.validate();
+    if report.is_complete() {
+        println!("  Status: complete ({} files)", report.present.len());
+    } else {
+        println!(
+            "  Status: {} present, {} missing",
+            report.present.len(),
+            report.missing.len()
+        );
+    }
+
+    println!();
+    println!("The .skills/ directory provides LLM agents with:");
+    println!("  - Wiki conventions and formatting rules");
+    println!("  - Workflows: ingest, query, lint, maintain");
+    println!("  - Templates: source-summary, entity-page, comparison");
+    println!("  - Context: domain description, research priorities");
+    println!();
+    println!("Customize these files to match your grimoire's domain.");
+
+    Ok(())
+}
+
 async fn run_default_tui(cli: &Cli) -> Result<()> {
     if let Some(vault_path) = &cli.vault {
         let format = parse_format(&cli.format);
@@ -519,7 +602,7 @@ mod tests {
         let temp_dir = TempDir::new().unwrap();
         let vault_path = temp_dir.path().join("my_vault");
 
-        cmd_new(&vault_path, "markdown", true).unwrap();
+        cmd_new(&vault_path, "markdown", true, true).unwrap();
 
         assert!(vault_path.exists());
         assert!(vault_path.join(".ztlgr").exists());
@@ -539,7 +622,7 @@ mod tests {
         let temp_dir = TempDir::new().unwrap();
         let vault_path = temp_dir.path().join("org_vault");
 
-        cmd_new(&vault_path, "org", true).unwrap();
+        cmd_new(&vault_path, "org", true, true).unwrap();
 
         assert!(vault_path.exists());
         assert!(vault_path.join(".ztlgr").exists());
@@ -550,8 +633,8 @@ mod tests {
         let temp_dir = TempDir::new().unwrap();
         let vault_path = temp_dir.path().join("existing_vault");
 
-        cmd_new(&vault_path, "markdown", true).unwrap();
-        let result = cmd_new(&vault_path, "markdown", true);
+        cmd_new(&vault_path, "markdown", true, true).unwrap();
+        let result = cmd_new(&vault_path, "markdown", true, true);
 
         assert!(result.is_err());
     }
@@ -561,7 +644,7 @@ mod tests {
         let temp_dir = TempDir::new().unwrap();
         let vault_path = temp_dir.path().join("search_vault");
 
-        cmd_new(&vault_path, "markdown", true).unwrap();
+        cmd_new(&vault_path, "markdown", true, true).unwrap();
 
         let result = cmd_search(&vault_path, "nonexistent query", 10, Format::Markdown);
         assert!(result.is_ok());
@@ -572,7 +655,7 @@ mod tests {
         let temp_dir = TempDir::new().unwrap();
         let vault_path = temp_dir.path().join("sync_vault");
 
-        cmd_new(&vault_path, "markdown", true).unwrap();
+        cmd_new(&vault_path, "markdown", true, true).unwrap();
 
         let result = cmd_sync(&vault_path, Format::Markdown, false);
         assert!(result.is_ok());
@@ -583,7 +666,7 @@ mod tests {
         let temp_dir = TempDir::new().unwrap();
         let vault_path = temp_dir.path().join("sync_force_vault");
 
-        cmd_new(&vault_path, "markdown", true).unwrap();
+        cmd_new(&vault_path, "markdown", true, true).unwrap();
 
         let result = cmd_sync(&vault_path, Format::Markdown, true);
         assert!(result.is_ok());
@@ -606,7 +689,7 @@ mod tests {
         let vault_path = temp_dir.path().join("import_vault");
         let source_path = temp_dir.path().join("source");
 
-        cmd_new(&vault_path, "markdown", true).unwrap();
+        cmd_new(&vault_path, "markdown", true, true).unwrap();
         std::fs::create_dir_all(&source_path).unwrap();
 
         let result = cmd_import(&source_path, &vault_path, Format::Markdown, true);
@@ -659,7 +742,7 @@ mod tests {
         let temp_dir = TempDir::new().unwrap();
         let vault_path = temp_dir.path().join("index_vault");
 
-        cmd_new(&vault_path, "markdown", true).unwrap();
+        cmd_new(&vault_path, "markdown", true, true).unwrap();
 
         let result = cmd_index(&vault_path, Format::Markdown);
         assert!(result.is_ok());
@@ -686,7 +769,7 @@ mod tests {
         let temp_dir = TempDir::new().unwrap();
         let vault_path = temp_dir.path().join("log_vault");
 
-        cmd_new(&vault_path, "markdown", true).unwrap();
+        cmd_new(&vault_path, "markdown", true, true).unwrap();
         cmd_index(&vault_path, Format::Markdown).unwrap();
 
         // Verify log.md was created
@@ -707,7 +790,7 @@ mod tests {
         let vault_path = temp_dir.path().join("git_vault");
 
         // no_git = false => git init should run
-        cmd_new(&vault_path, "markdown", false).unwrap();
+        cmd_new(&vault_path, "markdown", false, true).unwrap();
 
         assert!(vault_path.join(".git").exists());
     }
@@ -718,7 +801,7 @@ mod tests {
         let vault_path = temp_dir.path().join("nogit_vault");
 
         // no_git = true => no .git directory
-        cmd_new(&vault_path, "markdown", true).unwrap();
+        cmd_new(&vault_path, "markdown", true, true).unwrap();
 
         assert!(!vault_path.join(".git").exists());
     }
@@ -731,7 +814,7 @@ mod tests {
     fn test_cmd_ingest_success() {
         let temp_dir = TempDir::new().unwrap();
         let vault_path = temp_dir.path().join("ingest_vault");
-        cmd_new(&vault_path, "markdown", true).unwrap();
+        cmd_new(&vault_path, "markdown", true, true).unwrap();
 
         let source_file = temp_dir.path().join("article.md");
         std::fs::write(&source_file, "# Article\n\nContent here").unwrap();
@@ -749,7 +832,7 @@ mod tests {
     fn test_cmd_ingest_with_title() {
         let temp_dir = TempDir::new().unwrap();
         let vault_path = temp_dir.path().join("ingest_title");
-        cmd_new(&vault_path, "markdown", true).unwrap();
+        cmd_new(&vault_path, "markdown", true, true).unwrap();
 
         let source_file = temp_dir.path().join("a.md");
         std::fs::write(&source_file, "content").unwrap();
@@ -762,7 +845,7 @@ mod tests {
     fn test_cmd_ingest_duplicate() {
         let temp_dir = TempDir::new().unwrap();
         let vault_path = temp_dir.path().join("ingest_dup");
-        cmd_new(&vault_path, "markdown", true).unwrap();
+        cmd_new(&vault_path, "markdown", true, true).unwrap();
 
         let file1 = temp_dir.path().join("first.md");
         std::fs::write(&file1, "same content").unwrap();
@@ -790,7 +873,7 @@ mod tests {
     fn test_cmd_ingest_nonexistent_file() {
         let temp_dir = TempDir::new().unwrap();
         let vault_path = temp_dir.path().join("ingest_nofile");
-        cmd_new(&vault_path, "markdown", true).unwrap();
+        cmd_new(&vault_path, "markdown", true, true).unwrap();
 
         let result = cmd_ingest(Path::new("/nonexistent/file.md"), None, &vault_path);
         assert!(result.is_err());
@@ -801,8 +884,140 @@ mod tests {
         let temp_dir = TempDir::new().unwrap();
         let vault_path = temp_dir.path().join("raw_dir_vault");
 
-        cmd_new(&vault_path, "markdown", true).unwrap();
+        cmd_new(&vault_path, "markdown", true, true).unwrap();
 
         assert!(vault_path.join("raw").exists());
+    }
+
+    // =====================================================================
+    // .skills/ integration tests
+    // =====================================================================
+
+    #[test]
+    fn test_cmd_new_creates_skills_by_default() {
+        let temp_dir = TempDir::new().unwrap();
+        let vault_path = temp_dir.path().join("skills_vault");
+
+        // no_skills = false => .skills/ should be created
+        cmd_new(&vault_path, "markdown", true, false).unwrap();
+
+        assert!(vault_path.join(".skills").exists());
+        assert!(vault_path.join(".skills").join("README.md").exists());
+        assert!(vault_path.join(".skills").join("conventions.md").exists());
+        assert!(vault_path
+            .join(".skills")
+            .join("workflows")
+            .join("ingest.md")
+            .exists());
+        assert!(vault_path
+            .join(".skills")
+            .join("templates")
+            .join("source-summary.md")
+            .exists());
+        assert!(vault_path
+            .join(".skills")
+            .join("context")
+            .join("domain.md")
+            .exists());
+    }
+
+    #[test]
+    fn test_cmd_new_skips_skills_with_flag() {
+        let temp_dir = TempDir::new().unwrap();
+        let vault_path = temp_dir.path().join("no_skills_vault");
+
+        // no_skills = true => .skills/ should NOT be created
+        cmd_new(&vault_path, "markdown", true, true).unwrap();
+
+        assert!(!vault_path.join(".skills").exists());
+    }
+
+    #[test]
+    fn test_cmd_new_skills_contain_vault_name() {
+        let temp_dir = TempDir::new().unwrap();
+        let vault_path = temp_dir.path().join("named-grimoire");
+
+        cmd_new(&vault_path, "markdown", true, false).unwrap();
+
+        let readme = std::fs::read_to_string(vault_path.join(".skills").join("README.md")).unwrap();
+        assert!(readme.contains("named-grimoire"));
+    }
+
+    #[test]
+    fn test_cmd_init_skills_success() {
+        let temp_dir = TempDir::new().unwrap();
+        let vault_path = temp_dir.path().join("init_skills_vault");
+
+        // Create vault without skills
+        cmd_new(&vault_path, "markdown", true, true).unwrap();
+        assert!(!vault_path.join(".skills").exists());
+
+        // Now run init-skills
+        let result = cmd_init_skills(&vault_path);
+        assert!(result.is_ok());
+        assert!(vault_path.join(".skills").exists());
+        assert!(vault_path.join(".skills").join("README.md").exists());
+    }
+
+    #[test]
+    fn test_cmd_init_skills_nonexistent_vault() {
+        let temp_dir = TempDir::new().unwrap();
+        let vault_path = temp_dir.path().join("nonexistent_skills");
+
+        let result = cmd_init_skills(&vault_path);
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_cmd_init_skills_idempotent() {
+        let temp_dir = TempDir::new().unwrap();
+        let vault_path = temp_dir.path().join("idempotent_skills");
+
+        cmd_new(&vault_path, "markdown", true, false).unwrap();
+
+        // Custom-modify one file
+        std::fs::write(
+            vault_path.join(".skills").join("README.md"),
+            "# Custom README",
+        )
+        .unwrap();
+
+        // Run init-skills again -- should not overwrite custom README
+        cmd_init_skills(&vault_path).unwrap();
+
+        let readme = std::fs::read_to_string(vault_path.join(".skills").join("README.md")).unwrap();
+        assert_eq!(readme, "# Custom README");
+    }
+
+    #[test]
+    fn test_cmd_init_skills_fills_missing_files() {
+        let temp_dir = TempDir::new().unwrap();
+        let vault_path = temp_dir.path().join("fill_skills");
+
+        cmd_new(&vault_path, "markdown", true, false).unwrap();
+
+        // Delete some files
+        std::fs::remove_file(vault_path.join(".skills").join("workflows").join("lint.md")).unwrap();
+        std::fs::remove_file(
+            vault_path
+                .join(".skills")
+                .join("context")
+                .join("priorities.md"),
+        )
+        .unwrap();
+
+        // Run init-skills to fill them back
+        cmd_init_skills(&vault_path).unwrap();
+
+        assert!(vault_path
+            .join(".skills")
+            .join("workflows")
+            .join("lint.md")
+            .exists());
+        assert!(vault_path
+            .join(".skills")
+            .join("context")
+            .join("priorities.md")
+            .exists());
     }
 }
