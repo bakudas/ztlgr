@@ -13,7 +13,8 @@ A simple and fast terminal-based note-taking application with Zettelkasten metho
 - **Themes**: Dracula (default), Gruvbox, Nord, Solarized, and custom themes
 - **Vim Keybindings**: Modal editing with familiar vim shortcuts
 - **CLI Interface**: Create vaults, search notes, and sync from the command line
-- **Future-Proof Architecture**: Local files, smart db indexes and multi-agent system ready for extensions
+- **LLM Wiki Ready**: `.skills/` schema for LLM agents to maintain your knowledge base
+- **Future-Proof Architecture**: Local files as source of truth, SQLite index for speed
 
 ## Installation
 
@@ -224,18 +225,23 @@ accent_secondary = { r = 255, g = 121, b = 198 }
 
 ## Architecture
 
-ztlgr is built with a multi-agent architecture:
+ztlgr uses a hybrid storage architecture:
 
-- **NoteAgent**: Manages note CRUD operations
-- **LinkAgent**: Manages links between notes
-- **SearchAgent**: Full-text search
-- **GraphAgent**: Knowledge graph operations
-- **UIAgent**: Terminal UI management
+- **Files as Source of Truth**: Notes stored as `.md`/`.org` files, compatible with Obsidian, Foam, Logseq
+- **SQLite as Index**: Fast full-text search (FTS5), link graph, and metadata queries
+- **File Sync**: Bidirectional sync between files and database
 
-Each agent uses atomic skills:
-- **SqliteSkill**: Database operations
-- **MarkdownSkill**: Parse and render markdown
-- **TemplateSkill**: Note templates
+### LLM Wiki Integration (planned)
+
+ztlgr supports the "LLM Wiki" pattern -- where LLM agents incrementally build and
+maintain the knowledge base rather than re-deriving knowledge from scratch on each query.
+
+- **`.skills/`** directory: schema and workflows for LLM agents
+- **`raw/`** directory: immutable source material for ingestion
+- **`index.md`**: auto-generated catalog of all wiki pages
+- **`log.md`**: chronological activity log
+
+See `docs/ROADMAP-LLM-WIKI.md` for the full implementation plan.
 
 ## Database
 

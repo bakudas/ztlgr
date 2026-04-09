@@ -253,7 +253,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Database**: SQLite with FTS5
 - **Async Runtime**: Tokio
 - **Test Coverage**: 248 passing tests
-- **Architecture**: Multi-agent ready
+- **Architecture**: Hybrid storage (files + SQLite index)
 
 ### Platform Support
 - Linux: Tested on Ubuntu 20.04+

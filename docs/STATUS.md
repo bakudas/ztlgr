@@ -327,19 +327,55 @@ Comprehensive help system accessible via `?` or `:help`:
 
 ## 🟠 PRÓXIMOS PASSOS
 
-### Sprint Atual: Graph Enhancements & Quality of Life
+### Nova Direção: LLM Wiki Integration
 
+> **Branch:** `feat/llm-wiki-integration`
+> **Roadmap completo:** `docs/ROADMAP-LLM-WIKI.md`
+
+Evolução do ztlgr para suportar o padrão "LLM Wiki" -- onde agentes LLM
+mantêm incrementalmente a base de conhecimento (cross-references, summaries,
+entity pages) ao invés de re-derivar conhecimento a cada query.
+
+### Phase 0: Cleanup & Foundation (em andamento)
+- [x] Remover referências aspiracionais a "multi-agent" (README, CONTRIBUTING, CHANGELOG)
+- [x] Criar `.skills/` -- schema e workflows para agentes LLM
+- [x] Criar `docs/ROADMAP-LLM-WIKI.md` com plano de ação
+- [x] Atualizar STATUS.md com nova direção
+
+### Phase 1: Index & Log System (próximo)
+- [ ] `index.md` auto-gerado a partir do DB (agrupado por tipo, one-line summaries)
+- [ ] `log.md` activity log append-only
+- [ ] `ztlgr index` CLI command
+- [ ] `src/storage/index_generator.rs` + `activity_log.rs`
+
+### Phase 2: Raw Sources Layer
+- [ ] Diretório `raw/` no vault para fontes imutáveis
+- [ ] Tabela `sources` no DB (id, title, origin, hash, ingested_at)
+- [ ] `ztlgr ingest <file>` CLI command
+- [ ] Schema migration v1 -> v2
+
+### Phase 3: .skills/ Infrastructure
+- [ ] `ztlgr init-skills` CLI command
+- [ ] Templates padrão gerados automaticamente
+- [ ] Integração com `ztlgr new`
+
+### Phase 4: LLM Provider Abstraction
+- [ ] Trait `LlmProvider` (OpenAI, Anthropic, Ollama)
+- [ ] Config `[llm]` em `.ztlgr/config.toml`
+- [ ] Token/cost tracking
+
+### Phase 5: LLM Workflows (Ingest, Query, Lint)
+- [ ] `:ingest` / `ztlgr ingest --process`
+- [ ] `:ask` / `ztlgr ask "<question>"`
+- [ ] `:lint` / `ztlgr lint`
+
+### Phase 6: MCP Server
+- [ ] `ztlgr mcp` -- expõe vault como MCP tools
+- [ ] Tools: search, get_note, create_note, get_backlinks, ingest
+
+### Backlog (mantido do sprint anterior)
 - [ ] Graph filtering by note type, tags, or link depth
-- [ ] Graph zoom-to-fit on window resize
-- [ ] Graph hover/tooltip showing note metadata
-
-### Futuro:
-
 - [ ] Search filters (by type/tags/status/date)
-- [ ] Advanced CLI commands (`ztlgr note create`, `ztlgr export`)
-- [ ] Notifications/toasts in TUI
-- [ ] Sync status indicator
-- [ ] Auto-backup system
 - [ ] Note templates
 - [ ] Daily notes auto-creation
 

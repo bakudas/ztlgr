@@ -71,12 +71,12 @@ src/
 ├── lib.rs               # Library root
 ├── error.rs             # Error types
 ├── config/              # Configuration and themes
-├── db/                  # Database layer
+├── db/                  # Database layer (SQLite + FTS5)
 ├── note/                # Note types and Zettelkasten
-├── storage/             # File storage (MD/Org)
-├── ui/                  # TUI interface
-├── agent/               # Multi-agent system
-├── skill/               # Skill capabilities
+├── link/                # Link parsing, validation, fuzzy matching
+├── graph/               # Knowledge graph types and layout
+├── storage/             # File storage (Markdown/Org), sync, import
+├── ui/                  # TUI interface (ratatui)
 └── setup.rs             # Setup wizard
 ```
 
