@@ -102,3 +102,13 @@ create_daily_notes = true
 
 # Daily note time (HH:MM)
 daily_note_time = "00:00"
+
+[vcs]
+# Enable git integration (git init on grimoire creation)
+enabled = true
+
+# Auto-commit on note save (future feature)
+auto_commit = false
+
+# Commit message template ({action} and {details} are replaced)
+commit_message = "{action}: {details}"

@@ -1,12 +1,16 @@
 # .skills/ -- LLM Knowledge Base Schema
 
-This directory tells LLM agents how to operate on this Zettelkasten vault.
+This directory tells LLM agents how to operate on this Zettelkasten grimoire.
 It is the "schema layer" of the LLM Wiki pattern -- the instructions that turn
 a generic chatbot into a disciplined wiki maintainer.
 
+> **Local-first, human-first.** This grimoire works fully without any LLM.
+> Your files live on your machine, no cloud required. The LLM is an optional
+> amplifier that helps organize and connect knowledge -- you stay in control.
+
 ## For LLM Agents
 
-If you are an LLM agent (Claude, GPT, Codex, OpenCode, etc.) working on this vault,
+If you are an LLM agent (Claude, GPT, Codex, OpenCode, etc.) working on this grimoire,
 read these files in order:
 
 1. **This file** -- understand the structure
@@ -38,15 +42,17 @@ read these files in order:
 
 ## Design Principles
 
+- **Local-first**: the grimoire works 100% without any LLM or network connection
+- **Human-first**: you (the owner) direct; the LLM assists. Privacy by default
 - **Agent-agnostic**: works with any LLM that can read markdown files
-- **Vault-local**: each vault has its own skills because each has its own domain
+- **Vault-local**: each grimoire has its own skills because each has its own domain
 - **Human-editable**: customize workflows, templates, and context as needed
 - **Evolvable**: suggest improvements to these files as the wiki grows
 - **Git-tracked**: versioned alongside your notes
 
-## Vault Structure
+## Grimoire Structure
 
-This vault follows the Zettelkasten methodology with these directories:
+This grimoire follows the Zettelkasten methodology with these directories:
 
 | Directory | Purpose | Mutability |
 |-----------|---------|------------|

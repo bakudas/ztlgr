@@ -46,6 +46,9 @@ pub enum ZtlgrError {
 
     #[error("Vault not found: {0}")]
     VaultNotFound(String),
+
+    #[error("Git error: {0}")]
+    Git(String),
 }
 
 pub type Result<T> = std::result::Result<T, ZtlgrError>;

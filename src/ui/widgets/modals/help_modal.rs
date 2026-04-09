@@ -266,11 +266,11 @@ impl HelpModal {
         lines.push(Line::from(Span::styled("CLI Commands", heading_style)));
         lines.push(Line::from(vec![
             Span::styled("ztlgr new <path>       ", key_style),
-            Span::styled("  Create vault", fg_style),
+            Span::styled("  Create grimoire", fg_style),
         ]));
         lines.push(Line::from(vec![
             Span::styled("ztlgr open [path]      ", key_style),
-            Span::styled("  Open vault in TUI", fg_style),
+            Span::styled("  Open grimoire in TUI", fg_style),
         ]));
         lines.push(Line::from(vec![
             Span::styled("ztlgr search <query>   ", key_style),
@@ -282,7 +282,7 @@ impl HelpModal {
         ]));
         lines.push(Line::from(vec![
             Span::styled("ztlgr sync             ", key_style),
-            Span::styled("  Sync vault with DB", fg_style),
+            Span::styled("  Sync grimoire with DB", fg_style),
         ]));
         lines.push(Line::from(vec![
             Span::styled("ztlgr --help           ", key_style),

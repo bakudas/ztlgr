@@ -10,7 +10,7 @@ use crate::ui::App;
 #[derive(Parser)]
 #[command(version, author, about, long_about = None)]
 pub struct Cli {
-    /// Vault directory path
+    /// Grimoire directory path
     #[arg(long, env = "ZTLGR_VAULT")]
     pub vault: Option<PathBuf>,
 
@@ -32,19 +32,23 @@ pub struct Cli {
 
 #[derive(Subcommand)]
 pub enum Commands {
-    /// Create a new vault
+    /// Create a new grimoire
     New {
-        /// Vault path
+        /// Grimoire path
         path: PathBuf,
 
         /// Note format (markdown or org)
         #[arg(short, long, default_value = "markdown")]
         format: Option<String>,
+
+        /// Skip git repository initialization
+        #[arg(long)]
+        no_git: bool,
     },
 
-    /// Open an existing vault in the TUI
+    /// Open an existing grimoire in the TUI
     Open {
-        /// Vault path
+        /// Grimoire path
         path: Option<PathBuf>,
     },
 
@@ -53,7 +57,7 @@ pub enum Commands {
         /// Source directory
         source: PathBuf,
 
-        /// Vault path
+        /// Grimoire path
         #[arg(long)]
         vault: Option<PathBuf>,
 
@@ -62,9 +66,9 @@ pub enum Commands {
         recursive: bool,
     },
 
-    /// Sync vault files with database
+    /// Sync grimoire files with database
     Sync {
-        /// Vault path
+        /// Grimoire path
         #[arg(long)]
         vault: Option<PathBuf>,
 
@@ -78,7 +82,7 @@ pub enum Commands {
         /// Search query
         query: String,
 
-        /// Vault path
+        /// Grimoire path
         #[arg(long)]
         vault: Option<PathBuf>,
 
@@ -99,8 +103,9 @@ pub async fn execute(cli: &Cli) -> Result<()> {
         Some(Commands::New {
             path,
             format: cmd_format,
+            no_git,
         }) => {
-            cmd_new(path, cmd_format.as_deref().unwrap_or(&cli.format))?;
+            cmd_new(path, cmd_format.as_deref().unwrap_or(&cli.format), *no_git)?;
         }
         Some(Commands::Open { path }) => {
             let vault_path = resolve_vault_path(path.as_ref(), cli.vault.as_ref())?;
@@ -137,7 +142,7 @@ pub async fn execute(cli: &Cli) -> Result<()> {
     Ok(())
 }
 
-fn cmd_new(path: &Path, format_str: &str) -> Result<()> {
+fn cmd_new(path: &Path, format_str: &str, no_git: bool) -> Result<()> {
     let format = parse_format(format_str);
     let vault = Vault::new(path.to_path_buf(), format);
 
@@ -147,7 +152,18 @@ fn cmd_new(path: &Path, format_str: &str) -> Result<()> {
 
     vault.initialize()?;
 
-    println!("Vault created at {}", path.display());
+    // Git initialization (unless --no-git)
+    if !no_git {
+        match vault.git_init() {
+            Ok(true) => println!("  Git repository initialized"),
+            Ok(false) => {} // git not available, skip silently
+            Err(e) => {
+                eprintln!("  Warning: git init failed: {}", e);
+            }
+        }
+    }
+
+    println!("Grimoire created at {}", path.display());
     println!("  Format: {}", format.extension());
     println!();
     println!("Structure:");
@@ -162,7 +178,7 @@ fn cmd_new(path: &Path, format_str: &str) -> Result<()> {
     println!("  {}/daily/       - Daily journal", path.display());
     println!("  {}/attachments/ - Images and files", path.display());
     println!();
-    println!("Run 'ztlgr open {}' to open this vault", path.display());
+    println!("Run 'ztlgr open {}' to open this grimoire", path.display());
 
     Ok(())
 }
@@ -323,7 +339,7 @@ fn resolve_vault_path(
 ) -> Result<PathBuf> {
     let raw_path = cmd_path.or(global_path).cloned().ok_or_else(|| {
         ZtlgrError::VaultNotFound(
-            "no vault path specified. Use --vault or provide path to command".to_string(),
+            "no grimoire path specified. Use --vault or provide path to command".to_string(),
         )
     })?;
 
@@ -389,7 +405,7 @@ mod tests {
         let temp_dir = TempDir::new().unwrap();
         let vault_path = temp_dir.path().join("my_vault");
 
-        cmd_new(&vault_path, "markdown").unwrap();
+        cmd_new(&vault_path, "markdown", true).unwrap();
 
         assert!(vault_path.exists());
         assert!(vault_path.join(".ztlgr").exists());
@@ -409,7 +425,7 @@ mod tests {
         let temp_dir = TempDir::new().unwrap();
         let vault_path = temp_dir.path().join("org_vault");
 
-        cmd_new(&vault_path, "org").unwrap();
+        cmd_new(&vault_path, "org", true).unwrap();
 
         assert!(vault_path.exists());
         assert!(vault_path.join(".ztlgr").exists());
@@ -420,8 +436,8 @@ mod tests {
         let temp_dir = TempDir::new().unwrap();
         let vault_path = temp_dir.path().join("existing_vault");
 
-        cmd_new(&vault_path, "markdown").unwrap();
-        let result = cmd_new(&vault_path, "markdown");
+        cmd_new(&vault_path, "markdown", true).unwrap();
+        let result = cmd_new(&vault_path, "markdown", true);
 
         assert!(result.is_err());
     }
@@ -431,7 +447,7 @@ mod tests {
         let temp_dir = TempDir::new().unwrap();
         let vault_path = temp_dir.path().join("search_vault");
 
-        cmd_new(&vault_path, "markdown").unwrap();
+        cmd_new(&vault_path, "markdown", true).unwrap();
 
         let result = cmd_search(&vault_path, "nonexistent query", 10, Format::Markdown);
         assert!(result.is_ok());
@@ -442,7 +458,7 @@ mod tests {
         let temp_dir = TempDir::new().unwrap();
         let vault_path = temp_dir.path().join("sync_vault");
 
-        cmd_new(&vault_path, "markdown").unwrap();
+        cmd_new(&vault_path, "markdown", true).unwrap();
 
         let result = cmd_sync(&vault_path, Format::Markdown, false);
         assert!(result.is_ok());
@@ -453,7 +469,7 @@ mod tests {
         let temp_dir = TempDir::new().unwrap();
         let vault_path = temp_dir.path().join("sync_force_vault");
 
-        cmd_new(&vault_path, "markdown").unwrap();
+        cmd_new(&vault_path, "markdown", true).unwrap();
 
         let result = cmd_sync(&vault_path, Format::Markdown, true);
         assert!(result.is_ok());
@@ -465,7 +481,7 @@ mod tests {
         let vault_path = temp_dir.path().join("import_vault");
         let source_path = temp_dir.path().join("source");
 
-        cmd_new(&vault_path, "markdown").unwrap();
+        cmd_new(&vault_path, "markdown", true).unwrap();
         std::fs::create_dir_all(&source_path).unwrap();
 
         let result = cmd_import(&source_path, &vault_path, Format::Markdown, true);
@@ -511,5 +527,31 @@ mod tests {
 
         let result = cmd_import(&source_path, &vault_path, Format::Markdown, true);
         assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_cmd_new_with_git_init() {
+        if !Vault::is_git_available() {
+            return;
+        }
+
+        let temp_dir = TempDir::new().unwrap();
+        let vault_path = temp_dir.path().join("git_vault");
+
+        // no_git = false => git init should run
+        cmd_new(&vault_path, "markdown", false).unwrap();
+
+        assert!(vault_path.join(".git").exists());
+    }
+
+    #[test]
+    fn test_cmd_new_with_no_git() {
+        let temp_dir = TempDir::new().unwrap();
+        let vault_path = temp_dir.path().join("nogit_vault");
+
+        // no_git = true => no .git directory
+        cmd_new(&vault_path, "markdown", true).unwrap();
+
+        assert!(!vault_path.join(".git").exists());
     }
 }

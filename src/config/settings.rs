@@ -29,6 +29,10 @@ pub struct Config {
     /// Zettelkasten settings
     pub zettelkasten: ZettelkastenConfig,
 
+    /// Version control settings
+    #[serde(default)]
+    pub vcs: VcsConfig,
+
     #[serde(skip)]
     config_path: Option<PathBuf>,
 }
@@ -231,6 +235,28 @@ impl Default for ZettelkastenConfig {
     }
 }
 
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct VcsConfig {
+    /// Enable git integration
+    pub enabled: bool,
+
+    /// Auto-commit on note save (future)
+    pub auto_commit: bool,
+
+    /// Commit message template ({action} and {details} are replaced)
+    pub commit_message: String,
+}
+
+impl Default for VcsConfig {
+    fn default() -> Self {
+        Self {
+            enabled: true,
+            auto_commit: false,
+            commit_message: "{action}: {details}".to_string(),
+        }
+    }
+}
+
 impl Config {
     pub fn load_or_create() -> Result<Self> {
         let config_path = Self::config_path();
@@ -318,5 +344,80 @@ mod tests {
         let toml = toml::to_string(&config).unwrap();
         let deserialized: Config = toml::from_str(&toml).unwrap();
         assert_eq!(config.ui.theme, deserialized.ui.theme);
+    }
+
+    #[test]
+    fn test_vcs_config_defaults() {
+        let vcs = VcsConfig::default();
+        assert!(vcs.enabled);
+        assert!(!vcs.auto_commit);
+        assert_eq!(vcs.commit_message, "{action}: {details}");
+    }
+
+    #[test]
+    fn test_vcs_config_serialization() {
+        let config = Config::default();
+        let toml_str = toml::to_string(&config).unwrap();
+        assert!(toml_str.contains("[vcs]"));
+        assert!(toml_str.contains("enabled = true"));
+        assert!(toml_str.contains("auto_commit = false"));
+
+        let deserialized: Config = toml::from_str(&toml_str).unwrap();
+        assert_eq!(config.vcs.enabled, deserialized.vcs.enabled);
+        assert_eq!(config.vcs.auto_commit, deserialized.vcs.auto_commit);
+        assert_eq!(config.vcs.commit_message, deserialized.vcs.commit_message);
+    }
+
+    #[test]
+    fn test_vcs_config_missing_uses_default() {
+        // A config file without [vcs] should deserialize with defaults
+        let toml_str = r#"
+[vault]
+name = "test"
+auto_backup_interval = 3600
+max_backups = 5
+
+[ui]
+theme = "dracula"
+sidebar_width = 25
+show_preview = true
+show_line_numbers = true
+show_backlinks = true
+show_tags = true
+fps = 60
+
+[editor]
+keybindings = "vim"
+auto_save_interval = 30
+tab_width = 4
+soft_tabs = true
+word_wrap = true
+show_whitespace = false
+
+[notes]
+default_type = "permanent"
+auto_zettel_id = true
+
+[search]
+fuzzy = true
+case_sensitive = false
+max_results = 50
+search_content = true
+
+[graph]
+show_labels = true
+max_nodes = 100
+layout = "force-directed"
+depth = 3
+
+[zettelkasten]
+id_style = "luhmann"
+create_daily_notes = true
+daily_note_time = "00:00"
+"#;
+        let config: Config = toml::from_str(toml_str).unwrap();
+        // VcsConfig should use defaults when [vcs] section is absent
+        assert!(config.vcs.enabled);
+        assert!(!config.vcs.auto_commit);
     }
 }

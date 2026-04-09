@@ -1,20 +1,45 @@
 # ztlgr
 
-A simple and fast terminal-based note-taking application with Zettelkasten methodology, built with Rust.
+A local-first, personal knowledge base for the terminal. Zettelkasten methodology, built with Rust.
+
+Your notes live as plain files on your machine. No cloud, no telemetry, no lock-in.
+An optional LLM layer amplifies your ability to organize and connect knowledge --
+but the app works fully without it. You think, the tool organizes.
 
 **[Installation Guide](INSTALL.md)** | **[Documentation](#)** | **[Changelog](CHANGELOG.md)**
 
+## Principles
+
+> **Your knowledge, your machine, your rules.**
+
+ztlgr is built on three convictions:
+
+1. **Local-first.** Your notes are plain files on your filesystem. No server, no sync service,
+   no account. The SQLite database is just a search index -- delete it and it regenerates
+   from your files. You can read, edit, and move your notes with any tool you want.
+
+2. **Human-first.** You are the owner of your knowledge base, not a consumer of a platform.
+   ztlgr is a tool that serves you -- it never phones home, never tracks usage, never
+   makes decisions on your behalf. Every automated action (git commits, LLM suggestions)
+   requires your explicit consent.
+
+3. **LLM as amplifier, not dependency.** An optional LLM layer can help summarize, cross-reference,
+   and organize -- but the app is 100% functional without it. When you do use an LLM,
+   local models (Ollama) are the first-class option. Cloud providers are supported but never required.
+   The hierarchy is clear: **Human** (owner) > **ztlgr** (local tool) > **LLM** (optional assistant).
+
 ## Features
 
+- **Local & Personal First**: Your files, your machine, your control. No account required.
 - **Zettelkasten Methodology**: Luhmann-style IDs with flexible workflows
 - **Fast Search**: SQLite FTS5 full-text search
 - **Multiple Note Types**: Daily, fleeting, literature, permanent, reference, and index notes
-- **Link System**: Wiki-style links `[[note-title]]` with backlinks
+- **Link System**: Wiki-style links `[[note-title]]` with backlinks and knowledge graph
+- **Git-native Versioning**: Optional `git init` on grimoire creation for built-in history
 - **Themes**: Dracula (default), Gruvbox, Nord, Solarized, and custom themes
 - **Vim Keybindings**: Modal editing with familiar vim shortcuts
-- **CLI Interface**: Create vaults, search notes, and sync from the command line
-- **LLM Wiki Ready**: `.skills/` schema for LLM agents to maintain your knowledge base
-- **Future-Proof Architecture**: Local files as source of truth, SQLite index for speed
+- **CLI Interface**: Create grimoires, search notes, and sync from the command line
+- **LLM-augmented** (optional): `.skills/` schema lets LLM agents help maintain your knowledge base
 
 ## Installation
 
@@ -25,11 +50,11 @@ cargo install ztlgr
 ## Quick Start
 
 ```bash
-# Create a new vault
-ztlgr new my-vault
+# Create a new grimoire
+ztlgr new my-grimoire
 
-# Open the vault in the TUI
-ztlgr open my-vault
+# Open the grimoire in the TUI
+ztlgr open my-grimoire
 
 # Or run without arguments for the interactive setup wizard
 ztlgr
@@ -39,14 +64,17 @@ ztlgr
 
 ### `ztlgr new <path>`
 
-Create a new Zettelkasten vault with the full directory structure.
+Create a new Zettelkasten grimoire with the full directory structure.
 
 ```bash
-# Create a markdown vault (default)
+# Create a markdown grimoire (default)
 ztlgr new ~/notes
 
-# Create an org-mode vault
+# Create an org-mode grimoire
 ztlgr new ~/notes --format org
+
+# Skip git initialization
+ztlgr new ~/notes --no-git
 
 # With short flags
 ztlgr new ~/notes -f org
@@ -54,7 +82,7 @@ ztlgr new ~/notes -f org
 
 Creates the following structure:
 ```
-my-vault/
+my-grimoire/
 ├── .ztlgr/
 │   └── vault.db
 ├── permanent/      # Permanent knowledge notes
@@ -70,10 +98,10 @@ my-vault/
 
 ### `ztlgr open [path]`
 
-Open an existing vault in the TUI.
+Open an existing grimoire in the TUI.
 
 ```bash
-# Open a specific vault
+# Open a specific grimoire
 ztlgr open ~/notes
 
 # Open with global vault flag
@@ -95,16 +123,16 @@ ztlgr search "rust programming"
 ztlgr search "zettelkasten" --limit 10
 ztlgr search "zettelkasten" -l 10
 
-# Search within a specific vault
+# Search within a specific grimoire
 ztlgr search "rust" --vault ~/notes
 ```
 
 ### `ztlgr import <source>`
 
-Import existing notes from a directory into a vault.
+Import existing notes from a directory into a grimoire.
 
 ```bash
-# Import notes into the current vault
+# Import notes into the current grimoire
 ztlgr import ~/old-notes --vault ~/notes
 
 # Recursive import
@@ -114,7 +142,7 @@ ztlgr import ~/old-notes --vault ~/notes -r
 
 ### `ztlgr sync`
 
-Synchronize vault files with the database.
+Synchronize grimoire files with the database.
 
 ```bash
 # Quick sync
@@ -129,7 +157,7 @@ ztlgr sync --vault ~/notes -f
 
 | Flag | Description |
 |------|-------------|
-| `--vault <path>` | Default vault directory (env: `ZTLGR_VAULT`) |
+| `--vault <path>` | Grimoire directory (env: `ZTLGR_VAULT`) |
 | `-f, --format <fmt>` | Note format: `markdown` or `org` (default: `markdown`) |
 | `-c, --config <path>` | Configuration file path (env: `ZTLGR_CONFIG`) |
 | `-v, --verbose` | Verbosity level (repeat for more: `-vv`, `-vvv`) |
@@ -137,7 +165,7 @@ ztlgr sync --vault ~/notes -f
 | `-V, --version` | Print version |
 
 ```bash
-# Set vault via environment variable
+# Set grimoire via environment variable
 export ZTLGR_VAULT=~/notes
 ztlgr search "rust"
 
@@ -174,7 +202,7 @@ Configuration is stored in `~/.config/ztlgr/config.toml`:
 
 ```toml
 [vault]
-path = "~/.local/share/ztlgr/default.vault"
+path = "~/.local/share/ztlgr/default.grimoire"
 name = "default"
 auto_backup_interval = 3600
 
@@ -194,6 +222,11 @@ auto_zettel_id = true
 [zettelkasten]
 id_style = "luhmann"
 create_daily_notes = true
+
+[vcs]
+enabled = true
+auto_commit = false
+commit_message = "{action}: {details}"
 ```
 
 ## Themes
@@ -230,11 +263,13 @@ ztlgr uses a hybrid storage architecture:
 - **Files as Source of Truth**: Notes stored as `.md`/`.org` files, compatible with Obsidian, Foam, Logseq
 - **SQLite as Index**: Fast full-text search (FTS5), link graph, and metadata queries
 - **File Sync**: Bidirectional sync between files and database
+- **Git-native**: Optional `git init` on grimoire creation for built-in version history
 
 ### LLM Wiki Integration (planned)
 
 ztlgr supports the "LLM Wiki" pattern -- where LLM agents incrementally build and
 maintain the knowledge base rather than re-deriving knowledge from scratch on each query.
+The LLM is an optional amplifier, not a requirement. The app works fully without it.
 
 - **`.skills/`** directory: schema and workflows for LLM agents
 - **`raw/`** directory: immutable source material for ingestion
@@ -245,7 +280,7 @@ See `docs/ROADMAP-LLM-WIKI.md` for the full implementation plan.
 
 ## Database
 
-Each vault is a SQLite database with:
+Each grimoire is backed by a SQLite database with:
 
 - **notes** table: Core note storage
 - **links** table: Graph edges

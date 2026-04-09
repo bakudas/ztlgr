@@ -16,6 +16,18 @@ re-deriving knowledge from scratch on every query (as in traditional RAG).
 The core insight: humans curate sources, direct analysis, and ask questions.
 The LLM does the grunt work -- summarizing, cross-referencing, filing, and bookkeeping.
 
+### Local-first, human-first
+
+ztlgr is a **local-first** tool. Everything works without an LLM, without the cloud,
+without an account. Your notes are plain files on your machine.
+
+The hierarchy is: **Human** (owner) > **ztlgr** (local tool) > **LLM** (optional assistant).
+
+- Privacy by default: no telemetry, no data leaves your machine unless you choose it
+- Ollama (local models) is the first-class LLM option for zero-cost, zero-network operation
+- Cloud LLM providers (OpenAI, Anthropic) are supported but optional
+- The app is fully functional without any LLM configuration
+
 ### What we're NOT doing
 
 - **Not replacing Zettelkasten** -- the LLM Wiki pattern is complementary. Raw sources map
