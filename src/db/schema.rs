@@ -518,6 +518,96 @@ impl Database {
     pub fn get_path(&self) -> &Path {
         &self.path
     }
+
+    /// Count active (non-deleted) notes grouped by `note_type`.
+    ///
+    /// Returns a `Vec<(String, usize)>` where each element is `(note_type, count)`.
+    pub fn count_notes_by_type(&self) -> ZResult<Vec<(String, usize)>> {
+        let conn = self.conn.lock();
+
+        let mut stmt = conn
+            .prepare(
+                "SELECT note_type, COUNT(*) as cnt
+                 FROM notes
+                 WHERE deleted_at IS NULL
+                 GROUP BY note_type
+                 ORDER BY cnt DESC",
+            )
+            .map_err(ZtlgrError::Database)?;
+
+        let counts = stmt
+            .query_map([], |row| {
+                Ok((row.get::<_, String>(0)?, row.get::<_, usize>(1)?))
+            })
+            .map_err(ZtlgrError::Database)?
+            .collect::<std::result::Result<Vec<_>, _>>()
+            .map_err(ZtlgrError::Database)?;
+
+        Ok(counts)
+    }
+
+    /// Count total active (non-deleted) notes.
+    pub fn count_notes(&self) -> ZResult<usize> {
+        let conn = self.conn.lock();
+
+        let count: usize = conn
+            .query_row(
+                "SELECT COUNT(*) FROM notes WHERE deleted_at IS NULL",
+                [],
+                |row| row.get(0),
+            )
+            .map_err(ZtlgrError::Database)?;
+
+        Ok(count)
+    }
+
+    /// Count total links between active notes.
+    pub fn count_links(&self) -> ZResult<usize> {
+        let conn = self.conn.lock();
+
+        let count: usize = conn
+            .query_row(
+                "SELECT COUNT(*) FROM links l
+                 JOIN notes s ON l.source_id = s.id AND s.deleted_at IS NULL
+                 JOIN notes t ON l.target_id = t.id AND t.deleted_at IS NULL",
+                [],
+                |row| row.get(0),
+            )
+            .map_err(ZtlgrError::Database)?;
+
+        Ok(count)
+    }
+
+    /// List notes filtered by type (active only), ordered by title.
+    pub fn list_notes_by_type(
+        &self,
+        note_type: &str,
+        limit: usize,
+        offset: usize,
+    ) -> ZResult<Vec<Note>> {
+        let conn = self.conn.lock();
+
+        let mut stmt = conn
+            .prepare(
+                "SELECT id, title, content, note_type, zettel_id, parent_id, source, metadata, created_at, updated_at, deleted_at
+                 FROM notes
+                 WHERE deleted_at IS NULL AND note_type = ?1
+                 ORDER BY title ASC
+                 LIMIT ?2 OFFSET ?3",
+            )
+            .map_err(ZtlgrError::Database)?;
+
+        let notes = stmt
+            .query_map(
+                rusqlite::params![note_type, limit as i32, offset as i32],
+                note_from_row,
+            )
+            .map_err(ZtlgrError::Database)?
+            .collect::<std::result::Result<Vec<_>, _>>()
+            .map_err(ZtlgrError::Database)?;
+
+        Ok(notes)
+    }
 }
 
 #[cfg(test)]
@@ -1314,5 +1404,213 @@ mod tests {
         let nodes = db.get_graph_nodes().expect("Failed");
         assert_eq!(nodes.len(), 1);
         assert_eq!(nodes[0].0, note_id.as_str()); // id matches
+    }
+
+    // =====================================================================
+    // Tests for count_notes_by_type, count_notes, count_links, list_notes_by_type
+    // =====================================================================
+
+    #[test]
+    fn test_count_notes_empty_db() {
+        let (db, _temp) = create_test_db();
+        let count = db.count_notes().expect("Failed");
+        assert_eq!(count, 0);
+    }
+
+    #[test]
+    fn test_count_notes_with_entries() {
+        let (db, _temp) = create_test_db();
+        db.create_note(&create_test_note("Note A")).expect("Failed");
+        db.create_note(&create_test_note("Note B")).expect("Failed");
+        db.create_note(&create_test_note("Note C")).expect("Failed");
+
+        let count = db.count_notes().expect("Failed");
+        assert_eq!(count, 3);
+    }
+
+    #[test]
+    fn test_count_notes_excludes_deleted() {
+        let (db, _temp) = create_test_db();
+        let id_a = db.create_note(&create_test_note("Alive")).expect("Failed");
+        let id_b = db.create_note(&create_test_note("Dead")).expect("Failed");
+        db.delete_note(&id_b).expect("Failed");
+
+        let count = db.count_notes().expect("Failed");
+        assert_eq!(count, 1);
+        // Ensure the alive note is the one that's counted
+        let _ = id_a;
+    }
+
+    #[test]
+    fn test_count_notes_by_type_empty_db() {
+        let (db, _temp) = create_test_db();
+        let counts = db.count_notes_by_type().expect("Failed");
+        assert!(counts.is_empty());
+    }
+
+    #[test]
+    fn test_count_notes_by_type_multiple_types() {
+        let (db, _temp) = create_test_db();
+
+        // Create notes of different types
+        let mut daily = create_test_note("Daily Entry");
+        daily.note_type = NoteType::Daily;
+        db.create_note(&daily).expect("Failed");
+
+        let mut fleeting = create_test_note("Quick Thought");
+        fleeting.note_type = NoteType::Fleeting;
+        db.create_note(&fleeting).expect("Failed");
+
+        db.create_note(&create_test_note("Permanent A"))
+            .expect("Failed");
+        db.create_note(&create_test_note("Permanent B"))
+            .expect("Failed");
+
+        let counts = db.count_notes_by_type().expect("Failed");
+
+        // permanent=2 should be first (highest count), then daily=1, fleeting=1
+        assert_eq!(counts.len(), 3);
+
+        let permanent_count = counts.iter().find(|(t, _)| t == "permanent").unwrap().1;
+        let daily_count = counts.iter().find(|(t, _)| t == "daily").unwrap().1;
+        let fleeting_count = counts.iter().find(|(t, _)| t == "fleeting").unwrap().1;
+
+        assert_eq!(permanent_count, 2);
+        assert_eq!(daily_count, 1);
+        assert_eq!(fleeting_count, 1);
+    }
+
+    #[test]
+    fn test_count_notes_by_type_excludes_deleted() {
+        let (db, _temp) = create_test_db();
+
+        let id = db
+            .create_note(&create_test_note("Will Delete"))
+            .expect("Failed");
+        db.create_note(&create_test_note("Will Keep"))
+            .expect("Failed");
+        db.delete_note(&id).expect("Failed");
+
+        let counts = db.count_notes_by_type().expect("Failed");
+        assert_eq!(counts.len(), 1);
+        assert_eq!(counts[0], ("permanent".to_string(), 1));
+    }
+
+    #[test]
+    fn test_count_links_empty_db() {
+        let (db, _temp) = create_test_db();
+        let count = db.count_links().expect("Failed");
+        assert_eq!(count, 0);
+    }
+
+    #[test]
+    fn test_count_links_with_active_notes() {
+        let (db, _temp) = create_test_db();
+        let id_a = db.create_note(&create_test_note("A")).expect("Failed");
+        let id_b = db.create_note(&create_test_note("B")).expect("Failed");
+        let id_c = db.create_note(&create_test_note("C")).expect("Failed");
+
+        db.create_link(&id_a, &id_b, "reference", None)
+            .expect("Failed");
+        db.create_link(&id_a, &id_c, "reference", None)
+            .expect("Failed");
+
+        let count = db.count_links().expect("Failed");
+        assert_eq!(count, 2);
+    }
+
+    #[test]
+    fn test_count_links_excludes_deleted_endpoints() {
+        let (db, _temp) = create_test_db();
+        let id_a = db.create_note(&create_test_note("A")).expect("Failed");
+        let id_b = db.create_note(&create_test_note("B")).expect("Failed");
+        let id_c = db.create_note(&create_test_note("C")).expect("Failed");
+
+        db.create_link(&id_a, &id_b, "reference", None)
+            .expect("Failed");
+        db.create_link(&id_a, &id_c, "reference", None)
+            .expect("Failed");
+
+        // Delete note B -- link A->B should no longer be counted
+        db.delete_note(&id_b).expect("Failed");
+
+        let count = db.count_links().expect("Failed");
+        assert_eq!(count, 1);
+    }
+
+    #[test]
+    fn test_list_notes_by_type_returns_only_matching() {
+        let (db, _temp) = create_test_db();
+
+        let mut daily = create_test_note("Daily Entry");
+        daily.note_type = NoteType::Daily;
+        db.create_note(&daily).expect("Failed");
+
+        db.create_note(&create_test_note("Permanent Note"))
+            .expect("Failed");
+
+        let dailies = db.list_notes_by_type("daily", 100, 0).expect("Failed");
+        assert_eq!(dailies.len(), 1);
+        assert_eq!(dailies[0].title, "Daily Entry");
+
+        let permanents = db.list_notes_by_type("permanent", 100, 0).expect("Failed");
+        assert_eq!(permanents.len(), 1);
+        assert_eq!(permanents[0].title, "Permanent Note");
+    }
+
+    #[test]
+    fn test_list_notes_by_type_ordered_by_title() {
+        let (db, _temp) = create_test_db();
+
+        db.create_note(&create_test_note("Zebra")).expect("Failed");
+        db.create_note(&create_test_note("Alpha")).expect("Failed");
+        db.create_note(&create_test_note("Middle")).expect("Failed");
+
+        let notes = db.list_notes_by_type("permanent", 100, 0).expect("Failed");
+        assert_eq!(notes.len(), 3);
+        assert_eq!(notes[0].title, "Alpha");
+        assert_eq!(notes[1].title, "Middle");
+        assert_eq!(notes[2].title, "Zebra");
+    }
+
+    #[test]
+    fn test_list_notes_by_type_excludes_deleted() {
+        let (db, _temp) = create_test_db();
+
+        let id = db
+            .create_note(&create_test_note("Deleted"))
+            .expect("Failed");
+        db.create_note(&create_test_note("Active")).expect("Failed");
+        db.delete_note(&id).expect("Failed");
+
+        let notes = db.list_notes_by_type("permanent", 100, 0).expect("Failed");
+        assert_eq!(notes.len(), 1);
+        assert_eq!(notes[0].title, "Active");
+    }
+
+    #[test]
+    fn test_list_notes_by_type_respects_limit_offset() {
+        let (db, _temp) = create_test_db();
+
+        db.create_note(&create_test_note("A")).expect("Failed");
+        db.create_note(&create_test_note("B")).expect("Failed");
+        db.create_note(&create_test_note("C")).expect("Failed");
+
+        let page1 = db.list_notes_by_type("permanent", 2, 0).expect("Failed");
+        assert_eq!(page1.len(), 2);
+
+        let page2 = db.list_notes_by_type("permanent", 2, 2).expect("Failed");
+        assert_eq!(page2.len(), 1);
+    }
+
+    #[test]
+    fn test_list_notes_by_type_nonexistent_type() {
+        let (db, _temp) = create_test_db();
+        db.create_note(&create_test_note("Note")).expect("Failed");
+
+        let notes = db
+            .list_notes_by_type("nonexistent", 100, 0)
+            .expect("Failed");
+        assert!(notes.is_empty());
     }
 }

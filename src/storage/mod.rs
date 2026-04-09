@@ -1,11 +1,15 @@
+pub mod activity_log;
 pub mod importer;
+pub mod index_generator;
 pub mod markdown;
 pub mod org;
 pub mod organization;
 pub mod sync;
 pub mod watcher;
 
+pub use activity_log::ActivityLog;
 pub use importer::FileImporter;
+pub use index_generator::IndexGenerator;
 pub use markdown::MarkdownStorage;
 pub use org::OrgStorage;
 pub use organization::{FolderStats, NoteOrganizer};

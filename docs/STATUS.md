@@ -1,9 +1,9 @@
 # Status do Projeto ztlgr
 
-**Data Atualização:** 7 de Abril de 2026  
+**Data Atualização:** 9 de Abril de 2026  
 **Versão:** 0.5.0 (Knowledge Graph Visualization)  
 **Status Geral:** 🟢 ACTIVE DEVELOPMENT  
-**Testes:** 423 passing (100% success rate)
+**Testes:** 486 passing (100% success rate)
 
 ---
 
@@ -248,11 +248,12 @@ Comprehensive help system accessible via `?` or `:help`:
 
 | Comando | Descrição |
 |---------|-----------|
-| `ztlgr new <path>` | Cria vault com estrutura Zettelkasten completa |
-| `ztlgr open [path]` | Abre vault existente na TUI |
+| `ztlgr new <path>` | Cria grimoire com estrutura Zettelkasten completa |
+| `ztlgr open [path]` | Abre grimoire existente na TUI |
 | `ztlgr search <query>` | Busca notas via FTS5 |
 | `ztlgr import <source>` | Importa notas de diretório |
-| `ztlgr sync` | Sincroniza vault com database |
+| `ztlgr sync` | Sincroniza grimoire com database |
+| `ztlgr index` | Gera/atualiza index.md do grimoire |
 | `ztlgr --help` | Ajuda completa |
 | `ztlgr --version` | Versão |
 
@@ -342,13 +343,18 @@ entity pages) ao invés de re-derivar conhecimento a cada query.
 - [x] Criar `docs/ROADMAP-LLM-WIKI.md` com plano de ação
 - [x] Atualizar STATUS.md com nova direção
 
-### Phase 1: Index & Log System (próximo)
-- [ ] `index.md` auto-gerado a partir do DB (agrupado por tipo, one-line summaries)
-- [ ] `log.md` activity log append-only
-- [ ] `ztlgr index` CLI command
-- [ ] `src/storage/index_generator.rs` + `activity_log.rs`
+### ✅ Phase 1: Index & Log System (+53 tests, 486 total)
+- [x] `index.md` auto-gerado a partir do DB (agrupado por tipo, one-line summaries)
+- [x] `log.md` activity log append-only (sync, create, delete, import, index)
+- [x] `ztlgr index` CLI command
+- [x] `src/storage/index_generator.rs` (20 tests)
+- [x] `src/storage/activity_log.rs` (16 tests)
+- [x] DB helpers: `count_notes_by_type()`, `count_notes()`, `count_links()`, `list_notes_by_type()` (14 tests)
+- [x] CLI: `ztlgr index --vault <path>` (3 tests)
+- [x] Hooks: `ztlgr sync --force` regenerates index + writes activity log
+- [x] Hooks: `ztlgr import` writes activity log
 
-### Phase 2: Raw Sources Layer
+### Phase 2: Raw Sources Layer (próximo)
 - [ ] Diretório `raw/` no vault para fontes imutáveis
 - [ ] Tabela `sources` no DB (id, title, origin, hash, ingested_at)
 - [ ] `ztlgr ingest <file>` CLI command
@@ -406,10 +412,10 @@ cargo run
 ### CLI Commands
 
 ```bash
-# Criar novo vault
+# Criar novo grimoire
 ztlgr new ~/my-notes --format markdown
 
-# Abrir vault
+# Abrir grimoire
 ztlgr open ~/my-notes
 
 # Buscar notas
@@ -418,8 +424,11 @@ ztlgr search "rust zettelkasten" --vault ~/my-notes
 # Importar notas existentes
 ztlgr import ~/old-notes --vault ~/my-notes --recursive
 
-# Sincronizar
+# Sincronizar (regenera index + activity log)
 ztlgr sync --vault ~/my-notes --force
+
+# Gerar/atualizar index
+ztlgr index --vault ~/my-notes
 ```
 
 ---
@@ -444,7 +453,7 @@ ztlgr sync --vault ~/my-notes --force
                  │
 ┌─────────────────────────────────────────────┐
 │              CLI (clap)                      │
-│  new | open | search | import | sync        │
+│  new | open | search | import | sync | index│
 └─────────────────────────────────────────────┘
                  │
                  ▼
@@ -476,5 +485,5 @@ ztlgr sync --vault ~/my-notes --force
 
 ---
 
-**Status**: 🟢 v0.5.0 Released - Knowledge Graph Visualization Complete  
-**Próximo**: Graph enhancements (filtering, zoom-to-fit, tooltips).
+**Status**: 🟢 v0.5.0 Released - LLM Wiki Phase 1 Complete (Index & Log System)  
+**Próximo**: Phase 2 - Raw Sources Layer (raw/ directory, sources DB table, ztlgr ingest).

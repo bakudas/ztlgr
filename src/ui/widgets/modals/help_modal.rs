@@ -285,6 +285,10 @@ impl HelpModal {
             Span::styled("  Sync grimoire with DB", fg_style),
         ]));
         lines.push(Line::from(vec![
+            Span::styled("ztlgr index            ", key_style),
+            Span::styled("  Generate grimoire index", fg_style),
+        ]));
+        lines.push(Line::from(vec![
             Span::styled("ztlgr --help           ", key_style),
             Span::styled("  Show CLI help", fg_style),
         ]));

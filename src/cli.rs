@@ -4,7 +4,7 @@ use std::path::{Path, PathBuf};
 use crate::config::Config;
 use crate::db::Database;
 use crate::error::{Result, ZtlgrError};
-use crate::storage::{FileImporter, FileSync, Format, Vault};
+use crate::storage::{ActivityLog, FileImporter, FileSync, Format, IndexGenerator, Vault};
 use crate::ui::App;
 
 #[derive(Parser)]
@@ -90,6 +90,13 @@ pub enum Commands {
         #[arg(short, long, default_value = "50")]
         limit: usize,
     },
+
+    /// Generate or update the grimoire index
+    Index {
+        /// Grimoire path
+        #[arg(long)]
+        vault: Option<PathBuf>,
+    },
 }
 
 pub fn parse_args() -> Cli {
@@ -133,6 +140,10 @@ pub async fn execute(cli: &Cli) -> Result<()> {
         }) => {
             let vault_path = resolve_vault_path(cmd_vault.as_ref(), cli.vault.as_ref())?;
             cmd_search(&vault_path, query, *limit, format)?;
+        }
+        Some(Commands::Index { vault: cmd_vault }) => {
+            let vault_path = resolve_vault_path(cmd_vault.as_ref(), cli.vault.as_ref())?;
+            cmd_index(&vault_path, format)?;
         }
         None => {
             run_default_tui(cli).await?;
@@ -225,6 +236,10 @@ fn cmd_import(source: &Path, vault_path: &Path, format: Format, _recursive: bool
     let importer = FileImporter::new(source.to_path_buf(), format, db);
     let result = importer.import_all()?;
 
+    // Log the import activity
+    let activity_log = ActivityLog::new(vault_path);
+    let _ = activity_log.log_import(result.imported, result.failed);
+
     println!("Import complete:");
     println!("  Imported: {}", result.imported);
     println!("  Failed: {}", result.failed);
@@ -250,14 +265,27 @@ fn cmd_sync(vault_path: &Path, format: Format, force: bool) -> Result<()> {
     let db_path = vault.database_path();
     let db = Database::new(&db_path)?;
 
-    let sync = FileSync::new(vault_path.to_path_buf(), format, db);
+    let activity_log = ActivityLog::new(vault_path);
 
     if force {
+        let sync = FileSync::new(vault_path.to_path_buf(), format, db);
         let result = sync.full_sync()?;
+
+        // Log the sync activity
+        let _ = activity_log.log_sync(result.created_files, result.imported_notes, result.synced);
+
+        // Regenerate index after sync
+        let db2 = Database::new(&vault.database_path())?;
+        let total_notes = db2.count_notes()?;
+        let generator = IndexGenerator::new(&db2);
+        generator.write_index(vault_path)?;
+        let _ = activity_log.log_index(total_notes);
+
         println!("Full sync complete:");
         println!("  Files created: {}", result.created_files);
         println!("  Notes imported: {}", result.imported_notes);
         println!("  Notes synced: {}", result.synced);
+        println!("  Index regenerated");
     } else {
         println!("Sync complete (use --force for full sync)");
     }
@@ -297,6 +325,37 @@ fn cmd_search(vault_path: &Path, query: &str, limit: usize, format: Format) -> R
             println!();
         }
     }
+
+    Ok(())
+}
+
+fn cmd_index(vault_path: &Path, format: Format) -> Result<()> {
+    let vault = Vault::new(vault_path.to_path_buf(), format);
+
+    if !vault.exists() {
+        return Err(ZtlgrError::VaultNotFound(vault_path.display().to_string()));
+    }
+
+    let db_path = vault.database_path();
+    let db = Database::new(&db_path)?;
+
+    let total_notes = db.count_notes()?;
+    let total_links = db.count_links()?;
+
+    let generator = IndexGenerator::new(&db);
+    generator.write_index(vault_path)?;
+
+    // Log the activity
+    let activity_log = ActivityLog::new(vault_path);
+    activity_log.log_index(total_notes)?;
+
+    println!("Index generated:");
+    println!("  Notes indexed: {}", total_notes);
+    println!("  Links: {}", total_links);
+    println!(
+        "  Written to: {}",
+        vault_path.join(".ztlgr").join("index.md").display()
+    );
 
     Ok(())
 }
@@ -473,6 +532,17 @@ mod tests {
 
         let result = cmd_sync(&vault_path, Format::Markdown, true);
         assert!(result.is_ok());
+
+        // Verify index.md was generated during force sync
+        let index_path = vault_path.join(".ztlgr").join("index.md");
+        assert!(index_path.exists());
+
+        // Verify log.md was created with sync and index entries
+        let log_path = vault_path.join(".ztlgr").join("log.md");
+        assert!(log_path.exists());
+        let log_content = std::fs::read_to_string(&log_path).unwrap();
+        assert!(log_content.contains("sync |"));
+        assert!(log_content.contains("index |"));
     }
 
     #[test]
@@ -527,6 +597,49 @@ mod tests {
 
         let result = cmd_import(&source_path, &vault_path, Format::Markdown, true);
         assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_cmd_index_generates_index_file() {
+        let temp_dir = TempDir::new().unwrap();
+        let vault_path = temp_dir.path().join("index_vault");
+
+        cmd_new(&vault_path, "markdown", true).unwrap();
+
+        let result = cmd_index(&vault_path, Format::Markdown);
+        assert!(result.is_ok());
+
+        // Verify index.md was created
+        let index_path = vault_path.join(".ztlgr").join("index.md");
+        assert!(index_path.exists());
+
+        let content = std::fs::read_to_string(&index_path).unwrap();
+        assert!(content.contains("# Grimoire Index"));
+    }
+
+    #[test]
+    fn test_cmd_index_nonexistent_vault() {
+        let temp_dir = TempDir::new().unwrap();
+        let vault_path = temp_dir.path().join("nonexistent_index");
+
+        let result = cmd_index(&vault_path, Format::Markdown);
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_cmd_index_creates_activity_log() {
+        let temp_dir = TempDir::new().unwrap();
+        let vault_path = temp_dir.path().join("log_vault");
+
+        cmd_new(&vault_path, "markdown", true).unwrap();
+        cmd_index(&vault_path, Format::Markdown).unwrap();
+
+        // Verify log.md was created
+        let log_path = vault_path.join(".ztlgr").join("log.md");
+        assert!(log_path.exists());
+
+        let content = std::fs::read_to_string(&log_path).unwrap();
+        assert!(content.contains("index | Index regenerated"));
     }
 
     #[test]
