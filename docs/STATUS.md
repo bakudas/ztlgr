@@ -440,7 +440,190 @@ entity pages) ao invés de re-derivar conhecimento a cada query.
 
 ---
 
-## Como Testar
+## Future Enhancements (baseado em LLM Wiki Community)
+
+Conceitos identificados nos comentários do gist LLM Wiki que podem enriquecer o ztlgr:
+
+### P1: Confidence-Tagged Claims (Alto Valor, Baixa Complexidade)
+
+**Problema:** Contradições entre notas são difíceis de detectar automaticamente.
+
+**Solução:** Adicionar campo `confidence` no YAML frontmatter:
+```yaml
+---
+title: "Rails Performance Guide"
+confidence: high    # high | medium | low
+last_reviewed: 2026-04-09
+---
+```
+
+**Implementação:**
+- [ ] Adicionar `confidence` ao `Note` struct
+- [ ] Modifier `lint --full` para detectar contradições
+- [ ] Query MCP: `get_contradictions()` — WHERE confidence=high AND claims conflict
+
+**Benefício:** Torna audit do wiki semi-automático em vez de fuzzy re-read.
+
+### P2: WIP.md para Continuidade de Sessão (Alto Valor, Média Complexidade)
+
+**Problema:** `log.md` registra ações completadas, mas pensamentos em progresso desaparecem entre sessões.
+
+**Solução:** Criar `wip.md` (Work In Progress):
+```markdown
+# Work in Progress
+
+## [2026-04-09] Explorando: async Rust patterns
+Question: How does tokio::select! handle cancellation?
+Status: investigating
+Related: [[Rust Concurrency]], [[Tokio Internals]]
+Sources: raw/tokio-docs.md
+
+## [2026-04-08] Thesis: ML architectures for NLP
+Claim: Transformers are limited by quadratic attention
+Confidence: medium
+Evidence: [[Attention Paper]], [[Efficient Transformers]]
+Counter-evidence: [[Linear Attention Variants]]
+```
+
+**Implementação:**
+- [ ] Criar `.ztlgr/wip.md` durante `Vault::initialize()`
+- [ ] Comando `ztlgr wip` para gerenciar (add/list/complete)
+- [ ] Integrar com Query: LLM lê WIP para contexto
+
+**Benefício:** Sessões de pesquisa são retomáveis; perguntas em aberto não se perdem.
+
+### P3: Link Resolution at Write Time (Alto Valor, Média Complexidade)
+
+**Problema:** `[[Wiki Links]]` são texto. LLM pode criar links para notas inexistentes → 404.
+
+**Solução:** Validar e resolver links no momento da escrita:
+```rust
+// Ao criar nota:
+let content = NoteBuilder::new()
+    .title("Summary")
+    .wiki_link("Rust Async Patterns", &db)?  // Valida contra DB
+    .wiki_link_or_create("New Concept", &db)? // Cria stub se não existe
+    .build();
+```
+
+**Implementação:**
+- [ ] `LinkValidator::validate_all_links()` retorna lista de broken links
+- [ ] `NoteBuilder` API para construir notas com links validados
+- [ ] MCP tool `validate_links` — retorna broken links
+
+**Benefício:** Elimina hallucinated links; wiki integrity garantida.
+
+### P4: Progressive Disclosure no MCP (Médio Valor, Baixa Complexidade)
+
+**Problema:** `search` retorna conteúdo completo → contexto desperdiçado.
+
+**Solução:** Nova tool MCP `search_brief`:
+```json
+{
+  "name": "search_brief",
+  "arguments": {
+    "query": "async patterns",
+    "limit": 10
+  }
+}
+// Returns: [{title, type, date, confidence, snippet(50 chars)}]
+```
+
+**Implementação:**
+- [ ] Adicionar tool `search_brief` ao MCP
+- [ ] Usar `snippet` field do FTS5 para extração rápida
+
+**Benefício:** Agent pode escolher quais notas expandir; <400 tokens vs 4000.
+
+### P5: Contradiction Detection no Lint (Médio Valor, Média Complexidade)
+
+**Problema:** Contradições são detectadas manualmente pelo LLM no `lint --full`.
+
+**Solução:** Detecção determinística:
+```rust
+// No lint:
+// 1. Extrair claims com confidence=high
+// 2. Comparar com outros claims sobre mesmo tópico
+// 3. Flag contradições
+// Ex: "Raft is simpler than Paxos" vs "Raft and Paxos have similar complexity"
+```
+
+**Implementação:**
+- [ ] Adicionar `claim_extractor` no lint
+- [ ] Comparação semântica via embeddings ou heurística simples
+- [ ] Output: `## Contradictions` no lint report
+
+**Benefício:** Audit automático de contradições sem LLM chamar.
+
+### P6: Auto-Pruning / Decay (Baixo Valor, Alta Complexidade)
+
+**Problema:** Wiki cresce indefinidamente; notas antigas ficam desatualizadas.
+
+**Solução:** Sistema de decay:
+```yaml
+---
+last_reviewed: 2026-01-15
+importance: high    # high | medium | low
+decay_rate: 30      # days until stale
+---
+```
+
+**Implementação:**
+- [ ] Adicionar campos ao `Note` struct
+- [ ] `ztlgr lint --stale` lista notas que precisam review
+- [ ] Workflow sugere notas antigas importante para review
+
+**Benefício:** Wiki permanece atual; conhecimento stale é sinalizado.
+
+---
+
+## Implementation Plan (Pós-Phase 6)
+
+### Sprint 1: Confidence & WIP (Coleção de Feedback)
+
+| Prioridade | Feature | Estimativa | Pré-requisitos |
+|------------|---------|------------|----------------|
+| P1 | Confidence no frontmatter | 1 dia | None |
+| P1 | Contradições no lint | 2 dias | Confidence |
+| P2 | WIP.md creation | 1 dia | None |
+| P2 | `ztlgr wip` commands | 2 dias | WIP.md |
+| P3 | Link validation at write | 2 dias | None |
+| P4 | `search_brief` tool | 1 dia | MCP Server |
+
+**Total:** ~9 dias
+
+### Sprint 2: Integration & Polish
+
+| Prioridade | Feature | Estimativa | Pré-requisitos |
+|------------|---------|------------|----------------|
+| P3 | `NoteBuilder` API | 2 dias | None |
+| P3 | `validate_links` tool | 1 dia | NoteBuilder |
+| P5 | Contradiction detection | 3 dias | Confidence |
+| P5 | Embeddings support (opcional) | 2 dias | None |
+
+**Total:** ~8 dias
+
+### Sprint 3: Advanced Features
+
+| Prioridade | Feature | Estimativa | Pré-requisitos |
+|------------|---------|------------|----------------|
+| P6 | Decay system | 2 dias | None |
+| P6 | `ztlgr stale` command | 1 dia | Decay |
+| - | Multi-vault support | 3 dias | None |
+| - | Cloud sync (opcional) | 5 dias | None |
+
+**Total:** ~11 dias
+
+### Critérios de Priorização
+
+1. **Valor para o padrão LLM Wiki:** P1/P2 são críticos para o ciclo ingest → query → lint.
+2. **Feedback da comunidade:** WIP.md foi mencionado por múltiplos implementadores.
+3. **Complexidade:** Confidence é trivial de adicionar; embeddings é complexo.
+4. **Dependencies:** Link validation é independente; decay precisa de infra.
+
+---
+
+## Como Testar Versões Futuras
 
 ### Com Nix (Recomendado)
 
