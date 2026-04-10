@@ -78,15 +78,9 @@ impl LiteratureNoteProcessor {
         // 4. Remove excessive whitespace
         fixed = Self::normalize_whitespace(&fixed);
 
-        // 5. Cap length for very verbose models (but preserve frontmatter)
-        if let Some(fm_end) = fixed.find("\n---\n") {
-            let frontmatter = &fixed[..fm_end + 5];
-            let body = &fixed[fm_end + 5..];
-            let capped_body = Self::cap_length(body, 2000); // ~500 words for body
-            fixed = format!("{}{}", frontmatter, capped_body);
-        } else {
-            fixed = Self::cap_length(&fixed, 2000);
-        }
+        // Note: We do NOT truncate the content. If the LLM generates a long note,
+        // it's better to keep it complete than to lose information. The prompt
+        // should guide the LLM to be concise, but we don't force-truncate.
 
         Ok(fixed)
     }
@@ -132,29 +126,6 @@ impl LiteratureNoteProcessor {
 
         result.trim().to_string()
     }
-
-    /// Cap content length to prevent verbose output.
-    fn cap_length(content: &str, max_chars: usize) -> String {
-        if content.len() <= max_chars {
-            return content.to_string();
-        }
-
-        // Find a good breaking point (paragraph boundary)
-        let content = &content[..max_chars];
-        if let Some(last_para) = content.rfind("\n\n") {
-            format!(
-                "{}\n\n[... truncated for brevity ...]",
-                &content[..last_para]
-            )
-        } else if let Some(last_line) = content.rfind('\n') {
-            format!(
-                "{}\n\n[... truncated for brevity ...]",
-                &content[..last_line]
-            )
-        } else {
-            format!("{}\n\n[... truncated for brevity ...]", content)
-        }
-    }
 }
 
 #[cfg(test)]
@@ -171,6 +142,7 @@ mod tests {
         assert!(result.starts_with("---\n"));
         assert!(result.contains("type: literature"));
         assert!(result.contains("source: raw/test.md"));
+        assert!(!result.contains("[... truncated"));
     }
 
     #[test]
@@ -181,6 +153,28 @@ mod tests {
                 .unwrap();
 
         assert!(result.starts_with("---\ntype: literature"));
+        assert!(!result.contains("[... truncated"));
+    }
+
+    #[test]
+    fn test_validate_and_fix_corrects_wrong_source() {
+        let content = "---\ntype: literature\nsource: wrong/path.md\n---\n\n# Test";
+        let result =
+            LiteratureNoteProcessor::validate_and_fix(content, "Test Title", "raw/correct.md")
+                .unwrap();
+
+        assert!(result.contains("source: raw/correct.md"));
+        assert!(!result.contains("wrong/path.md"));
+    }
+
+    #[test]
+    fn test_validate_and_fix_adds_missing_source() {
+        let content = "---\ntype: literature\n---\n\n# Test";
+        let result =
+            LiteratureNoteProcessor::validate_and_fix(content, "Test Title", "raw/test.md")
+                .unwrap();
+
+        assert!(result.contains("source: raw/test.md"));
     }
 
     #[test]
@@ -189,8 +183,9 @@ mod tests {
         let result = LiteratureNoteProcessor::normalize_wiki_links(content);
 
         // The function fixes spaces inside brackets and around pipes
-        assert!(result.contains("[[link]]") || result.contains("[[link ]]"));
-        assert!(!result.contains("[[ test |"));
+        assert!(!result.contains("[[ "));
+        assert!(!result.contains(" ]]"));
+        assert!(!result.contains("| "));
     }
 
     #[test]
@@ -203,24 +198,6 @@ mod tests {
     }
 
     #[test]
-    fn test_cap_length_truncates_at_paragraph() {
-        let content = "A".repeat(2000) + "\n\n" + &"B".repeat(100);
-        let result = LiteratureNoteProcessor::cap_length(&content, 1500);
-
-        assert!(result.len() < content.len());
-        assert!(result.contains("[... truncated"));
-    }
-
-    #[test]
-    fn test_cap_length_preserves_short_content() {
-        let content = "Short content";
-        let result = LiteratureNoteProcessor::cap_length(content, 1500);
-
-        assert_eq!(result, content);
-        assert!(!result.contains("truncated"));
-    }
-
-    #[test]
     fn test_validate_and_fix_adds_title_if_missing() {
         let content = "Just some text without headers";
         let result =
@@ -228,5 +205,20 @@ mod tests {
                 .unwrap();
 
         assert!(result.contains("# My Source"));
+    }
+
+    #[test]
+    fn test_validate_and_fix_no_truncation() {
+        let long_content = format!(
+            "---\ntype: literature\nsource: raw/test.md\n---\n\n# Test\n\n{}",
+            "word ".repeat(1000)
+        );
+        let result =
+            LiteratureNoteProcessor::validate_and_fix(&long_content, "Test Title", "raw/test.md")
+                .unwrap();
+
+        // Should NOT truncate even very long content
+        assert!(!result.contains("[... truncated"));
+        assert!(result.len() > 5000); // Should be much longer than any cap
     }
 }
