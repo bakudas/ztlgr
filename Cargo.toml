@@ -68,7 +68,7 @@ crossbeam-channel = "0.5"
 
 # File system
 walkdir = "2.4"
-sanitize-filename = "0.5"
+sanitize-filename = "0.6"
 unicode-width = "0.1"
 
 # Document conversion for LLM ingestion
