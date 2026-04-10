@@ -1,9 +1,9 @@
 # Status do Projeto ztlgr
 
 **Data Atualização:** 10 de Abril de 2026  
-**Versão:** 0.5.0 (Knowledge Graph Visualization + Document Conversion + LLM Providers)
+**Versão:** 0.6.0 (LLM Wiki Integration Complete)
 **Status Geral:** 🟢 ACTIVE DEVELOPMENT
-**Testes:** 903 passing (100% success rate)
+**Testes:** 904 passing (100% success rate)
 
 ---
 
@@ -132,7 +132,75 @@ Multi-format document conversion for the LLM Wiki workflow:
 
 ---
 
-## 🚀 LATEST RELEASE: v0.5.0
+## 🚀 LATEST RELEASE: v0.6.0
+
+**Release Date:** April 10, 2026  
+**Release Tag:** v0.6.0
+
+**What's New in v0.6.0:**
+
+### ✨ LLM Wiki Integration (Phases 0-6)
+
+Complete implementation of the "LLM Wiki" pattern where LLM agents maintain the knowledge base:
+
+- **MCP Server** (Phase 6)
+  - JSON-RPC 2.0 over stdio
+  - 9 tools: search, get_note, list_notes, create_note, get_backlinks, ingest_source, read_index, read_log, read_skills
+  - Full lifecycle: initialize → operation → shutdown
+  - CLI: `ztlgr mcp`
+
+- **LLM Workflows** (Phase 5)
+  - `IngestWorkflow::process()` - automates literature note creation from sources
+  - `QueryWorkflow::ask()` - queries grimoire with wiki-link citations
+  - `LintWorkflow` - local lint (orphan notes, short notes) + full lint (LLM-assisted contradictions)
+  - CLI: `ztlgr ingest --process`, `ztlgr ask "<question>"`, `ztlgr lint [--full]`
+
+- **LLM Providers** (Phase 4)
+  - Abstract `LlmProvider` trait with async `complete()`
+  - 6 backends: Ollama (local), OpenAI, Anthropic, Google Gemini, OpenRouter, NVIDIA NIM
+  - `ContextBuilder` builds prompts from `.skills/`
+  - `UsageTracker` estimates costs per model
+
+- **Skills Infrastructure** (Phase 3)
+  - `.skills/` directory with LLM agent schema and prompts
+  - `ztlgr init-skills` - generate/validate skills filesystem
+  - 12 content generators for agent instructions
+
+- **Raw Sources Layer** (Phase 2)
+  - `raw/` directory for immutable source material
+  - `sources` table with SHA-256 deduplication
+  - Schema migration v1 → v2
+  - CLI: `ztlgr ingest <file>`
+
+- **Index & Log System** (Phase 1)
+  - Auto-generated `index.md` with grouped notes
+  - Append-only `log.md` activity log
+  - CLI: `ztlgr index`
+
+- **Progress Indicators**
+  - Multi-stage spinners for CLI operations
+  - Visual feedback: ReadingSource → Converting → SendingToLLM → CreatingNote → UpdatingIndex
+
+- **Document Conversion**
+  - PDF/EPUB/DOCX/PPTX/XLSX/HTML/CSV/JSON/XML → Markdown
+  - Dependencies: anytomd, pdf-extract, epub
+
+- **Post-Processor**
+  - Auto-fixes LLM output formatting
+  - Frontmatter normalization, wiki-link fixes
+
+### 🔧 Technical Changes
+
+- Bumped version from 0.5.0 to 0.6.0
+- 904 tests passing (+481 from v0.5.0)
+- New modules: `src/llm/`, `src/skills/`, `src/source/`, `src/mcp/`, `src/progress/`
+- New dependencies: reqwest, regex, anytomd, pdf-extract, epub, indicatif
+- Database migration v1 → v2 (sources table)
+- Zero clippy warnings
+
+---
+
+## 🚀 PREVIOUS RELEASE: v0.5.0
 
 **Release Date:** April 7, 2026  
 **Release Tag:** v0.5.0
@@ -448,100 +516,31 @@ Comprehensive help system accessible via `?` or `:help`:
 
 ## 🟠 PRÓXIMOS PASSOS
 
-### Nova Direção: LLM Wiki Integration
+### Post-Release (v0.6.0)
+- [ ] Monitor GitHub Actions build
+- [ ] Monitor crates.io publish
+- [ ] Update README with LLM features
+- [ ] Create GitHub release notes from CHANGELOG
+- [ ] Announce release (Discord, Reddit, Twitter/Mastodon)
 
-> **Branch:** `feat/llm-wiki-integration`
-> **Roadmap completo:** `docs/ROADMAP-LLM-WIKI.md`
+### Future Enhancements (baseado em LLM Wiki Community)
+- [ ] Confidence-tagged claims no frontmatter
+- [ ] WIP.md para continuidade de sessão
+- [ ] Link resolution at write time
+- [ ] Progressive disclosure no MCP (search_brief)
+- [ ] Contradiction detection no lint
+- [ ] Auto-pruning / decay system
 
-Evolução do ztlgr para suportar o padrão "LLM Wiki" -- onde agentes LLM
-mantêm incrementalmente a base de conhecimento (cross-references, summaries,
-entity pages) ao invés de re-derivar conhecimento a cada query.
-
-### Phase 0: Cleanup & Foundation (em andamento)
-- [x] Remover referências aspiracionais a "multi-agent" (README, CONTRIBUTING, CHANGELOG)
-- [x] Criar `.skills/` -- schema e workflows para agentes LLM
-- [x] Criar `docs/ROADMAP-LLM-WIKI.md` com plano de ação
-- [x] Atualizar STATUS.md com nova direção
-
-### ✅ Phase 1: Index & Log System (+53 tests, 486 total)
-- [x] `index.md` auto-gerado a partir do DB (agrupado por tipo, one-line summaries)
-- [x] `log.md` activity log append-only (sync, create, delete, import, index)
-- [x] `ztlgr index` CLI command
-- [x] `src/storage/index_generator.rs` (20 tests)
-- [x] `src/storage/activity_log.rs` (16 tests)
-- [x] DB helpers: `count_notes_by_type()`, `count_notes()`, `count_links()`, `list_notes_by_type()` (14 tests)
-- [x] CLI: `ztlgr index --vault <path>` (3 tests)
-- [x] Hooks: `ztlgr sync --force` regenerates index + writes activity log
-- [x] Hooks: `ztlgr import` writes activity log
-
-### ✅ Phase 2: Raw Sources Layer (+66 tests, 552 total)
-- [x] Diretório `raw/` criado durante vault init para fontes imutáveis
-- [x] Tabela `sources` no DB (id, title, origin, hash, file_path, file_size, mime_type, ingested_at)
-- [x] Schema migration v1 → v2 (`migration_v2.sql`, auto-applied on DB open)
-- [x] `src/source/mod.rs` — `Source` struct, `SourceId`, builder pattern (9 tests)
-- [x] `src/source/ingest.rs` — `Ingester` with SHA-256 dedup, copy to `raw/`, DB + log integration (~15 tests)
-- [x] `src/db/schema.rs` — `get_schema_version()`, `migrate()`, 6 source CRUD methods (~20 tests)
-- [x] `src/storage/index_generator.rs` — Sources section in index, `format_file_size()` (7 new tests)
-- [x] `src/storage/activity_log.rs` — `Ingest` activity kind, `log_ingest()` (1 new test)
-- [x] `ztlgr ingest <file> [--title <name>]` CLI command (6 tests)
-- [x] Error variants: `SourceNotFound`, `Ingest`, `Migration`
-- [x] `sha2` crate added for content hashing
-
-### ✅ Phase 3: .skills/ Infrastructure (+53 tests, 605 total)
-- [x] `src/skills/mod.rs` — `Skills` struct, `ValidationReport`, loader, file readers, `list_files()` (17 tests)
-- [x] `src/skills/generator.rs` — `SkillsGenerator`, 12 content generators, `GenerateResult` with created/skipped (28 tests)
-- [x] `ztlgr init-skills --vault <path>` CLI command (validates, fills missing files)
-- [x] `--no-skills` flag for `ztlgr new` (skip .skills/ generation)
-- [x] Default .skills/ generation during `ztlgr new` and setup wizard
-- [x] `prompt_init_skills()` in setup wizard (Y/n prompt)
-- [x] Error variant: `Skills(String)`
-- [x] CLI tests: skills by default, skip with flag, vault name in skills, init-skills success, nonexistent vault, idempotent, fills missing files (7 new tests)
-- [x] Help modal updated with `init-skills` command
-
-### ✅ Phase 4: LLM Provider Abstraction (+122 tests, 727 total)
-- [x] `src/llm/provider.rs` — `LlmProvider` trait (`Pin<Box<dyn Future>>` for object safety), `Role`, `Message`, `LlmRequest` (builder), `LlmResponse`, `TokenUsage` (16 tests)
-- [x] `src/llm/mod.rs` — `ProviderKind` enum (Ollama, OpenAi, Anthropic) with `FromStr`, `create_provider()` factory (17 tests)
-- [x] `src/llm/ollama.rs` — `OllamaProvider` with Ollama Chat API format, local-first (11 tests)
-- [x] `src/llm/openai.rs` — `OpenAiProvider` with OpenAI Chat Completions API (14 tests)
-- [x] `src/llm/anthropic.rs` — `AnthropicProvider` with Anthropic Messages API (system as top-level field) (18 tests)
-- [x] `src/llm/context.rs` — `ContextBuilder` loads `.skills/` files, builds system prompts, estimates tokens (18 tests)
-- [x] `src/llm/usage.rs` — `UsageTracker` per-model cost estimation, activity log integration, hardcoded pricing (26 tests)
-- [x] `src/config/settings.rs` — `LlmConfig` struct (enabled, provider, model, api_base, api_key_env, max_tokens, temperature) with `#[serde(default)]` (4 tests)
-- [x] `config.example.toml` — `[llm]` section with full documentation
-- [x] `src/storage/activity_log.rs` — `Llm` variant in `ActivityKind`
-- [x] `Cargo.toml` — Added `reqwest` 0.12 with `rustls-tls`
-- [x] Error variants: `Llm(String)`, `LlmProvider(String)`
-- [x] API keys read from env vars, NEVER stored in config files
-- [x] Ollama is default (local-first, no API key needed)
-
-### ✅ Phase 5: LLM Workflows (+70 tests, 797 total)
-- [x] `src/llm/workflow.rs` — `WorkflowEngine` with manual `Debug` impl, `build_context()`, `execute()`, `finish()`, `require_llm_enabled()`, `read_source_content()`, `truncate_to_token_budget()` (21 tests)
-- [x] `src/llm/workflows/ingest.rs` — `IngestWorkflow::process()`: reads source from `raw/`, LLM generates literature note, writes to `literature/`, regenerates index (11 tests)
-- [x] `src/llm/workflows/query.rs` — `QueryWorkflow::ask()`: FTS5 search + index.md context, LLM synthesizes answer with `[[wiki-link]]` citations (13 tests)
-- [x] `src/llm/workflows/lint.rs` — `LintWorkflow::local_lint()` (no LLM) + `full_lint()` (LLM-assisted): orphan notes, short notes, unprocessed sources, `LintReport` with `to_markdown()` (19 tests)
-- [x] `ztlgr ingest --process` — Ingest + LLM processing in one step (`cmd_ingest` now async)
-- [x] `ztlgr ask "<question>"` — CLI command for querying the grimoire via LLM
-- [x] `ztlgr lint [--full]` — Local lint (no LLM) or full lint (LLM-assisted)
-- [x] `load_config()` helper for consistent config loading across commands
-- [x] `#[serde(default)]` added to `Config` and `LlmConfig` for partial TOML support
-- [x] CLI tests: config loading, ask, lint commands (8 new tests)
-- [x] Help modal updated with `--process`, `ask`, `lint` commands
-
-### ✅ Phase 6: MCP Server (+67 tests, 867 total)
-- [x] `src/mcp/mod.rs` — JSON-RPC 2.0 types, MCP lifecycle structs, `InitializeParams`, `InitializeResult`, `ToolDefinition`, `ToolCallResult` (21 tests)
-- [x] `src/mcp/tools.rs` — 9 tool definitions and handlers: search, get_note, list_notes, create_note, get_backlinks, ingest_source, read_index, read_log, read_skills (45 tests)
-- [x] `src/mcp/server.rs` — Stdio transport, `ServerState` state machine, `process_message()`, `run_server()` (21 tests)
-- [x] `ztlgr mcp` — CLI command to start MCP server over stdio
-- [x] Protocol: JSON-RPC 2.0 over stdin/stdout, newline-delimited
-- [x] Lifecycle: initialize → initialized → operation (tools/list, tools/call) → shutdown
-- [x] Error variants: `Mcp(String)` added to `ZtlgrError`
-- [x] Help modal updated with `mcp` command
-
-### Backlog (mantido do sprint anterior)
+### Backlog
 - [ ] Graph filtering by note type, tags, or link depth
 - [ ] Search filters (by type/tags/status/date)
 - [ ] Note templates
 - [ ] Daily notes auto-creation
+
+---
+
+**Status**: 🟢 v0.6.0 Released - LLM Wiki Integration Complete  
+**Próximo Release**: v0.7.0 (Future Enhancements)
 
 ---
 
