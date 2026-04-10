@@ -71,6 +71,11 @@ walkdir = "2.4"
 sanitize-filename = "0.5"
 unicode-width = "0.1"
 
+# Document conversion for LLM ingestion
+anytomd = "1.2"           # DOCX, PPTX, XLSX, HTML, CSV, JSON, XML -> Markdown
+pdf-extract = "0.10"      # PDF -> Text
+epub = "2.1"              # EPUB parsing
+
 # CLI
 clap = { version = "4.4", features = ["derive", "env"] }
 shellexpand = "3.1"

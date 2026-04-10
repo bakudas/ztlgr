@@ -1,3 +1,4 @@
+pub mod convert;
 pub mod ingest;
 
 use chrono::{DateTime, Utc};

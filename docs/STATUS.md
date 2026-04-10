@@ -1,9 +1,9 @@
 # Status do Projeto ztlgr
 
 **Data Atualização:** 9 de Abril de 2026  
-**Versão:** 0.5.0 (Knowledge Graph Visualization)
+**Versão:** 0.5.0 (Knowledge Graph Visualization + Document Conversion)
 **Status Geral:** 🟢 ACTIVE DEVELOPMENT
-**Testes:** 867 passing (100% success rate)
+**Testes:** 883 passing (100% success rate)
 
 ---
 
@@ -24,6 +24,49 @@
 - ✅ **LLM Wiki Phase 4**: 100% (LLM provider trait, Ollama/OpenAI/Anthropic, context builder, usage tracker)
 - ✅ **LLM Wiki Phase 5**: 100% (workflow engine, ingest/query/lint workflows, ask/lint CLI)
 - ✅ **LLM Wiki Phase 6**: 100% (MCP server -- stdio transport, 9 tools, 67 tests)
+- ✅ **Document Conversion**: 100% (PDF, DOCX, PPTX, XLSX, HTML, CSV, JSON, XML → Markdown)
+
+---
+
+## 🔄 RECENT IMPROVEMENTS (April 9, 2026)
+
+### Document Conversion for LLM Ingestion
+
+Multi-format document conversion for the LLM Wiki workflow:
+
+**New Dependencies:**
+- `anytomd v1.2` — Converts DOCX, PPTX, XLSX, HTML, CSV, JSON, XML, images to Markdown
+- `pdf-extract v0.10` — Extracts text from PDF files
+- `epub v2.1` — Parses EPUB ebooks for HTML extraction
+
+**New Module** (`src/source/convert.rs`):
+- `DocumentFormat` enum: PDF, EPUB, Generic (anytomd)
+- `convert_to_markdown(path)` — Auto-detects format and converts to Markdown
+- `convert_pdf()` — PDF text extraction
+- `convert_epub()` — EPUB HTML extraction and conversion
+- `convert_anytomd()` — Delegates to anytomd for all other formats
+- `extract_text_from_html()` — HTML to plain text (for EPUB)
+- `parse_entity()` — HTML entity decoder
+- 16 unit tests covering format detection, conversion, and HTML parsing
+
+**Integration:**
+- Modified `read_source_content()` in `src/llm/workflow.rs` to auto-convert non-Markdown files
+- Markdown and text files pass through unchanged
+- All other formats are converted before LLM processing
+
+**Supported Formats:**
+| Format | Converter | Notes |
+|--------|-----------|-------|
+| PDF | pdf-extract | Text extraction |
+| EPUB | epub + anytomd | HTML extraction |
+| DOCX | anytomd | Full support |
+| PPTX | anytomd | Full support |
+| XLSX/XLS | anytomd | Full support |
+| HTML/HTM | anytomd | Full support |
+| CSV | anytomd | Converted to Markdown tables |
+| JSON/XML | anytomd | Pretty-printed in code blocks |
+| Images | anytomd | Optional LLM-based description |
+| Code files | anytomd | Fenced code blocks with language ID |
 
 ---
 

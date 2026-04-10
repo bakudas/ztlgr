@@ -208,6 +208,8 @@ pub fn require_llm_enabled(config: &LlmConfig) -> Result<()> {
 ///
 /// Given a vault path and a relative file path (e.g. "raw/article-abc123.md"),
 /// reads the full content. Returns an error if the file doesn't exist.
+///
+/// For non-Markdown files (PDF, DOCX, EPUB, etc.), converts to Markdown first.
 pub fn read_source_content(vault_path: &Path, relative_path: &str) -> Result<String> {
     let full_path = vault_path.join(relative_path);
 
@@ -218,13 +220,31 @@ pub fn read_source_content(vault_path: &Path, relative_path: &str) -> Result<Str
         )));
     }
 
-    std::fs::read_to_string(&full_path).map_err(|e| {
-        ZtlgrError::Ingest(format!(
-            "Failed to read source file {}: {}",
-            full_path.display(),
-            e
-        ))
-    })
+    // Check file extension to determine if conversion is needed
+    let extension = full_path
+        .extension()
+        .and_then(|e| e.to_str())
+        .map(|e| e.to_lowercase());
+
+    match extension.as_deref() {
+        Some("md") | Some("markdown") | Some("txt") => {
+            // Plain text / Markdown: read directly
+            std::fs::read_to_string(&full_path).map_err(|e| {
+                ZtlgrError::Ingest(format!(
+                    "Failed to read source file {}: {}",
+                    full_path.display(),
+                    e
+                ))
+            })
+        }
+        _ => {
+            // Other formats: convert to Markdown
+            use crate::source::convert::convert_to_markdown;
+
+            let result = convert_to_markdown(&full_path)?;
+            Ok(result.markdown)
+        }
+    }
 }
 
 /// Truncate content to fit within a token budget.
