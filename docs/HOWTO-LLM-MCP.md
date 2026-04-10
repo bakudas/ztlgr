@@ -673,8 +673,21 @@ export PATH="$PATH:/path/to/ztlgr/target/release"
 
 ## Referências
 
-- [LLM Wiki Pattern (Karpathy)](https://gist.github.com/karpathy/442a6bf555914893e9891c11519de94f)
-- [Model Context Protocol Spec](https://spec.modelcontextprotocol.io/)
-- [Ollama Documentation](https://ollama.com/docs)
+- **[LLM Wiki Pattern (Karpathy)](https://gist.github.com/karpathy/442a6bf555914893e9891c11519de94f)** — Original pattern that inspired ztlgr's LLM integration. The core idea: instead of RAG on every query, the LLM maintains a persistent, compounding wiki.
+- [Model Context Protocol Spec](https://spec.modelcontextprotocol.io/) — Protocol for LLM agent tool integration
+- [Ollama Documentation](https://ollama.com/docs) — Local model serving
 - [AGENTS.md](./AGENTS.md) — Instruções para agentes AI
+- [ROADMAP-LLM-WIKI.md](./ROADMAP-LLM-WIKI.md) — Plano de implementação completo
+
+### Acknowledgments
+
+Much of the architecture and future direction was informed by the community discussion around Karpathy's gist, including insights from:
+
+- **@manavgup** — Typed JSON contracts, confidence-tagged claims, wikilink resolution
+- **@glaucobrito** — WIP.md for session continuity, auto-pruning, feedback loops
+- **@swartzlib7** — Decay model for knowledge articles
+- **@waydelyle** — Contradiction detection with typed edges
+- **@roomi-fields** — Progressive disclosure in search results
+
+The Future Enhancements section in STATUS.md incorporates several of these patterns.
 - [ROADMAP-LLM-WIKI.md](./ROADMAP-LLM-WIKI.md) — Plano de implementação completo

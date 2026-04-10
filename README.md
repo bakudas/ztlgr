@@ -6,6 +6,9 @@ Your notes live as plain files on your machine. No cloud, no telemetry, no lock-
 An optional LLM layer amplifies your ability to organize and connect knowledge --
 but the app works fully without it. You think, the tool organizes.
 
+> **Inspired by [Karpathy's LLM Wiki pattern](https://gist.github.com/karpathy/442a6bf555914893e9891c11519de94f)**
+> — The idea of an LLM-maintained, persistent wiki that compounds knowledge over time.
+
 **[Installation Guide](INSTALL.md)** | **[Documentation](#)** | **[Changelog](CHANGELOG.md)**
 
 ## Principles

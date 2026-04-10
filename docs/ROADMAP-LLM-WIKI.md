@@ -3,6 +3,7 @@
 **Branch:** `feat/llm-wiki-integration`
 **Created:** April 9, 2026
 **Status:** Phase 6 Complete — All 7 phases implemented
+**Inspiration:** [Karpathy's LLM Wiki](https://gist.github.com/karpathy/442a6bf555914893e9891c11519de94f)
 
 ---
 
