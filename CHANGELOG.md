@@ -7,6 +7,74 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.6.0] - 2026-04-10
+
+### Added
+
+- **LLM Wiki Integration** (Phases 0-6)
+  - Full implementation of the "LLM Wiki" pattern for AI-maintained knowledge bases
+  - `.skills/` directory with schema and prompts for LLM agents
+  - `raw/` directory for immutable source material
+
+- **MCP Server** (Phase 6)
+  - JSON-RPC 2.0 server over stdio
+  - 9 tools: search, get_note, list_notes, create_note, get_backlinks, ingest_source, read_index, read_log, read_skills
+  - Lifecycle: initialize → initialized → operation → shutdown
+  - CLI command: `ztlgr mcp`
+
+- **LLM Workflows** (Phase 5)
+  - `IngestWorkflow::process()` - reads source, LLM generates literature note
+  - `QueryWorkflow::ask()` - FTS5 search + LLM synthesis with wiki-link citations
+  - `LintWorkflow::local_lint()` + `full_lint()` - orphan notes, short notes, unprocessed sources
+  - CLI commands: `ztlgr ingest --process`, `ztlgr ask "<question>"`, `ztlgr lint [--full]`
+
+- **LLM Provider Abstraction** (Phase 4)
+  - `LlmProvider` trait with async `complete()` method
+  - 6 providers: Ollama (local), OpenAI, Anthropic, Google Gemini, OpenRouter, NVIDIA NIM
+  - `ContextBuilder` - loads `.skills/` files, builds system prompts
+  - `UsageTracker` - per-model cost estimation, activity log integration
+
+- **Skills Infrastructure** (Phase 3)
+  - `src/skills/` module with validation and generation
+  - `ztlgr init-skills` - generates/validates `.skills/` directory
+  - 12 content generators for LLM agent instructions
+
+- **Raw Sources Layer** (Phase 2)
+  - `raw/` directory for immutable source material
+  - `sources` table with SHA-256 deduplication
+  - Schema migration v1 → v2
+  - CLI: `ztlgr ingest <file> [--title <name>]`
+
+- **Index & Log System** (Phase 1)
+  - Auto-generated `index.md` with grouped notes and summaries
+  - Append-only `log.md` activity log
+  - CLI: `ztlgr index`
+
+- **Progress Indicators**
+  - Multi-stage progress with spinner animations for long-running CLI operations
+  - Visual feedback phases: ReadingSource, Converting, SendingToLLM, CreatingNote, UpdatingIndex
+
+- **Document Conversion**
+  - `src/source/convert.rs` - multi-format to Markdown
+  - Supported: PDF, EPUB, DOCX, PPTX, XLSX, HTML, CSV, JSON, XML
+  - Dependencies: anytomd, pdf-extract, epub crates
+
+- **LLM Post-Processor**
+  - `LiteratureNoteProcessor::validate_and_fix()` - automatic formatting fixes
+  - Auto-adds frontmatter, normalizes wiki-links, removes excessive whitespace
+
+### Fixed
+
+- Remove content truncation from post-processor (preserves full content)
+- Prevent duplicate frontmatter in literature notes
+
+### Technical
+
+- New dependencies: reqwest 0.12, regex 1.10, anytomd 1.2, pdf-extract 0.10, epub 2.1, indicatif 0.17
+- New modules: `src/llm/`, `src/skills/`, `src/source/`, `src/mcp/`, `src/progress/`
+- Database migration: v1 → v2 (sources table)
+- Test count: 903 passing (+480 from v0.5.0)
+
 ## [0.5.0] - 2026-04-07
 
 ### Added
