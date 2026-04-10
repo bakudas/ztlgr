@@ -6,6 +6,7 @@ use crate::db::Database;
 use crate::error::{Result, ZtlgrError};
 use crate::llm::workflows::{IngestWorkflow, LintWorkflow, QueryWorkflow};
 use crate::mcp::server::{run_server, McpServerConfig};
+use crate::progress::ProcessProgress;
 use crate::skills::generator::SkillsGenerator;
 use crate::skills::Skills;
 use crate::source::ingest::Ingester;
@@ -521,14 +522,16 @@ async fn cmd_ingest(
 
     // If --process flag is set, run LLM processing
     if process {
-        println!();
-        println!("Processing with LLM...");
+        let mut progress = ProcessProgress::new();
+        progress.set_phase(crate::progress::ProcessingPhase::ReadingSource);
 
         let config = load_config(vault_path, config_path)?;
         let llm_config = &config.llm;
 
         // Re-open DB since Ingester consumed the first one
         let db2 = Database::new(&db_path)?;
+
+        progress.set_phase(crate::progress::ProcessingPhase::SendingToLLM);
 
         let process_result = IngestWorkflow::process(
             llm_config,
@@ -539,13 +542,28 @@ async fn cmd_ingest(
         )
         .await?;
 
+        progress.set_phase(crate::progress::ProcessingPhase::CreatingNote);
+
+        progress.set_phase(crate::progress::ProcessingPhase::UpdatingIndex);
+
+        progress.finish_success(&format!(
+            "Created: {}",
+            process_result.literature_note_title
+        ));
+
+        println!();
         println!("Literature note created:");
         println!("  Title: {}", process_result.literature_note_title);
-        println!("  Note ID: {}", process_result.note_id);
+        println!(
+            "  Path: literature/{}.md",
+            result.source.title.to_lowercase().replace(' ', "-")
+        );
         println!("  Model: {}", process_result.model);
         println!("  Tokens: {}", process_result.total_tokens);
         if process_result.estimated_cost_usd > 0.0 {
             println!("  Est. cost: ${:.4}", process_result.estimated_cost_usd);
+        } else {
+            println!("  Est. cost: $0.00 (local model)");
         }
     }
 

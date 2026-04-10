@@ -7,6 +7,7 @@ pub mod link;
 pub mod llm;
 pub mod mcp;
 pub mod note;
+pub mod progress;
 pub mod setup;
 pub mod skills;
 pub mod source;

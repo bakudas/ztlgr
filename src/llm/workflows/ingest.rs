@@ -3,6 +3,7 @@ use std::path::Path;
 use crate::config::LlmConfig;
 use crate::db::Database;
 use crate::error::Result;
+use crate::llm::post_processor::LiteratureNoteProcessor;
 use crate::llm::workflow::{read_source_content, truncate_to_token_budget, WorkflowEngine};
 use crate::note::{Note, NoteType};
 use crate::storage::activity_log::{ActivityEntry, ActivityKind, ActivityLog};
@@ -78,18 +79,33 @@ impl IngestWorkflow {
 
         // Build user prompt with the source content
         let user_prompt = format!(
-            "Process the following source material and create a literature note summary.\n\n\
-             Source title: {}\n\
-             Source path: {}\n\n\
+            "Create a CONCISE literature note (200-400 words).\n\n\
+             Source: {}\n\
+             Path: {}\n\n\
+             ---\n\
+             {}\n\
              ---\n\n\
-             {}\n\n\
-             ---\n\n\
-             Create a comprehensive literature note. Include:\n\
-             1. Key takeaways (3-5 bullet points)\n\
-             2. Detailed summary\n\
-             3. Notable quotes (if any)\n\
-             4. Connections to potential topics\n\n\
-             Format as markdown. Use [[wiki-links]] for concepts that deserve their own pages.",
+             Output STRUCTURE:\n\
+             \n\
+             ## Summary (2-3 sentences)\n\
+             Brief overview of the main argument or findings.\n\
+             \n\
+             ## Key Points (3-5 bullets)\n\
+             - Most important insight\n\
+             - Second key insight\n\
+             - ...\n\
+             \n\
+             ## Notable Quotes (max 2-3)\n\
+             > \"Key quote\" (cite if page number available)\n\
+             \n\
+             ## Connections\n\
+             - [[concept]] - brief reason\n\
+             \n\
+             CONSTRAINTS:\n\
+             - Be BRIEF and FACTUAL\n\
+             - No introductions or conclusions\n\
+             - Use [[wiki-links]] for key concepts\n\
+             - Omit obvious or redundant points",
             source_title, source_relative_path, content_for_llm,
         );
 
@@ -98,11 +114,18 @@ impl IngestWorkflow {
             .execute(&system_prompt, &user_prompt, "ingest")
             .await?;
 
+        // Post-process the generated content (fix formatting issues)
+        let processed_content = LiteratureNoteProcessor::validate_and_fix(
+            &result.content,
+            source_title,
+            source_relative_path,
+        )?;
+
         // Create the literature note
         let note_title = format!("Literature: {}", source_title);
         let note_content = format!(
             "---\ntype: literature\nsource: {}\n---\n\n{}",
-            source_relative_path, result.content
+            source_relative_path, processed_content
         );
 
         let note =
@@ -193,16 +216,23 @@ fn sanitize_title_for_filename(title: &str) -> String {
 
 /// Default system prompt when no `.skills/` directory is configured.
 fn default_ingest_system_prompt() -> String {
-    "You are a knowledge management assistant for a personal wiki (Zettelkasten).\n\n\
-     Your task is to process source material and create literature notes.\n\n\
-     Guidelines:\n\
-     - Extract key takeaways as bullet points\n\
-     - Write a detailed but concise summary\n\
-     - Identify notable quotes\n\
-     - Suggest connections to broader topics using [[wiki-links]]\n\
-     - Use markdown formatting\n\
-     - Be factual and faithful to the source material\n\
-     - Do not invent information not present in the source"
+    "You are a concise note-taking assistant for a personal wiki (Zettelkasten).\n\n\
+     Your task: Create BRIEF, HIGH-VALUE literature notes from source material.\n\n\
+     CONSTRAINTS:\n\
+     - Total length: 200-400 words MAX\n\
+     - Summary: 2-3 sentences\n\
+     - Key points: 3-5 bullets (one line each)\n\
+     - Quotes: 2-3 MAX (only truly insightful)\n\
+     - Connections: 2-3 brief links\n\n\
+     FORMATTING:\n\
+     - Use [[wiki-links]] for concepts worth their own notes\n\
+     - Use markdown headers (##)\n\
+     - NO introductions or conclusions\n\
+     - NO filler words or repetition\n\n\
+     QUALITY:\n\
+     - Prefer signal over noise\n\
+     - Specific over generic\n\
+     - Faithful to source (no invention)"
         .to_string()
 }
 

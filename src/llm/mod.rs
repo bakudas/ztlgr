@@ -2,6 +2,7 @@ pub mod anthropic;
 pub mod context;
 pub mod ollama;
 pub mod openai;
+pub mod post_processor;
 pub mod provider;
 pub mod usage;
 pub mod workflow;
@@ -11,6 +12,7 @@ use crate::config::LlmConfig;
 use crate::error::{Result, ZtlgrError};
 
 pub use context::ContextBuilder;
+pub use post_processor::LiteratureNoteProcessor;
 pub use provider::{LlmProvider, LlmRequest, LlmResponse, Message, Role, TokenUsage};
 pub use usage::UsageTracker;
 pub use workflow::{WorkflowEngine, WorkflowResult};

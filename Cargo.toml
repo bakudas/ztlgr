@@ -76,6 +76,9 @@ anytomd = "1.2"           # DOCX, PPTX, XLSX, HTML, CSV, JSON, XML -> Markdown
 pdf-extract = "0.10"      # PDF -> Text
 epub = "2.1"              # EPUB parsing
 
+# Progress indicators
+indicatif = "0.17"
+
 # CLI
 clap = { version = "4.4", features = ["derive", "env"] }
 shellexpand = "3.1"
