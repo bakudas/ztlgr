@@ -1,9 +1,9 @@
 # Status do Projeto ztlgr
 
-**Data Atualização:** 9 de Abril de 2026  
-**Versão:** 0.5.0 (Knowledge Graph Visualization + Document Conversion)
+**Data Atualização:** 10 de Abril de 2026  
+**Versão:** 0.5.0 (Knowledge Graph Visualization + Document Conversion + LLM Providers)
 **Status Geral:** 🟢 ACTIVE DEVELOPMENT
-**Testes:** 883 passing (100% success rate)
+**Testes:** 903 passing (100% success rate)
 
 ---
 
@@ -25,12 +25,74 @@
 - ✅ **LLM Wiki Phase 5**: 100% (workflow engine, ingest/query/lint workflows, ask/lint CLI)
 - ✅ **LLM Wiki Phase 6**: 100% (MCP server -- stdio transport, 9 tools, 67 tests)
 - ✅ **Document Conversion**: 100% (PDF, DOCX, PPTX, XLSX, HTML, CSV, JSON, XML → Markdown)
+- ✅ **Progress Indicators**: 100% (multi-stage progress, spinner animations)
+- ✅ **LLM Post-Processor**: 100% (note validation, formatting fixes)
+- ✅ **Extended LLM Providers**: 100% (Gemini, OpenRouter, NVIDIA)
 
 ---
 
-## 🔄 RECENT IMPROVEMENTS (April 9, 2026)
+## 🔄 RECENT IMPROVEMENTS (April 10, 2026)
 
-### Document Conversion for LLM Ingestion
+### Progress Indicators for CLI
+
+Multi-stage progress feedback during `--process` operations:
+
+**New Module** (`src/progress.rs`):
+- `ProcessProgress` — Multi-phase progress with spinner animations
+- `ProcessingPhase` enum: ReadingSource, Converting, SendingToLLM, CreatingNote, UpdatingIndex
+- `SimpleProgress` — Single-operation progress
+- Visual feedback: `◐◓◑◒` spinners, success (`✓`) and error (`✗`) markers
+
+**Integration** (`src/cli.rs`):
+- Progress indicator shows current phase during LLM processing
+- Clear status messages replace silent waiting
+- Better UX for long-running operations
+
+### Improved LLM Prompts
+
+More concise literature notes with better structure:
+
+**Changes** (`src/llm/workflows/ingest.rs`):
+- Prompt now requests 200-400 words (down from unlimited)
+- Explicit output STRUCTURE: Summary, Key Points, Notable Quotes, Connections
+- Added CONSTRAINTS section: no introductions, no filler, be factual
+- Default system prompt updated with quality guidelines
+
+### LLM Post-Processor
+
+Automatic formatting fixes for poor-quality model output:
+
+**New Module** (`src/llm/post_processor.rs`):
+- `LiteratureNoteProcessor::validate_and_fix()` — Ensures proper note structure
+- Auto-adds frontmatter if missing (`type`, `source`)
+- Normalizes wiki-links (fixes spacing, pipes)
+- Removes excessive whitespace
+- Caps length at ~1500 chars for verbose models
+
+### New LLM Providers
+
+Extended provider support for 6 backends total:
+
+**Providers** (`src/llm/`):
+| Provider | Models | Auth |
+|-----------|--------|------|
+| **Ollama** | llama3, mistral, codellama, etc. | None (local) |
+| **OpenAI** | gpt-4o, gpt-4o-mini, o3, etc. | `OPENAI_API_KEY` |
+| **Anthropic** | claude-sonnet-4, claude-haiku | `ANTHROPIC_API_KEY` |
+| **Google Gemini** | gemini-2.0-flash, gemini-1.5-pro | `GOOGLE_API_KEY` |
+| **OpenRouter** | 200+ models (aggregator) | `OPENROUTER_API_KEY` |
+| **NVIDIA NIM** | meta/llama-3.1-8b, etc. | `NVIDIA_API_KEY` |
+
+**Pricing Estimation** (`src/llm/usage.rs`):
+- Added Gemini pricing (free tier for gemini-2, paid for 1.5-pro)
+- OpenRouter/NVIDIA default to $0 (varies by model)
+
+**Config** (`config.example.toml`):
+- Updated with all provider examples
+- Model recommendations for each provider
+- Environment variable documentation
+
+---
 
 Multi-format document conversion for the LLM Wiki workflow:
 
