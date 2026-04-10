@@ -36,6 +36,12 @@ uuid = { version = "1.6", features = ["v4", "serde"] }
 # Markdown parsing
 pulldown-cmark = "0.13"
 
+# Hashing
+sha2 = "0.10"
+
+# HTTP client (LLM providers)
+reqwest = { version = "0.12", features = ["json", "rustls-tls"] }
+
 # Regex
 regex = "1.10"
 
@@ -64,6 +70,14 @@ crossbeam-channel = "0.5"
 walkdir = "2.4"
 sanitize-filename = "0.5"
 unicode-width = "0.1"
+
+# Document conversion for LLM ingestion
+anytomd = "1.2"           # DOCX, PPTX, XLSX, HTML, CSV, JSON, XML -> Markdown
+pdf-extract = "0.10"      # PDF -> Text
+epub = "2.1"              # EPUB parsing
+
+# Progress indicators
+indicatif = "0.17"
 
 # CLI
 clap = { version = "4.4", features = ["derive", "env"] }

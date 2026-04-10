@@ -1,9 +1,9 @@
 # Status do Projeto ztlgr
 
-**Data Atualização:** 7 de Abril de 2026  
-**Versão:** 0.5.0 (Knowledge Graph Visualization)  
-**Status Geral:** 🟢 ACTIVE DEVELOPMENT  
-**Testes:** 423 passing (100% success rate)
+**Data Atualização:** 10 de Abril de 2026  
+**Versão:** 0.5.0 (Knowledge Graph Visualization + Document Conversion + LLM Providers)
+**Status Geral:** 🟢 ACTIVE DEVELOPMENT
+**Testes:** 903 passing (100% success rate)
 
 ---
 
@@ -13,10 +13,122 @@
 - ✅ **Infrastructure**: 100% (setup, DB, storage, themes)
 - ✅ **Core Features**: 100% (editor, search, command, modals)
 - ✅ **Link System**: 100% (parsing + validation + highlighting + autocomplete + following + backlinks + DB integration)
-- ✅ **CLI Interface**: 100% (new, open, search, import, sync)
+- ✅ **CLI Interface**: 100% (new, open, search, import, sync, index, ingest, ask, lint, init-skills)
 - ✅ **Markdown Preview**: 100% (blockquotes, tables, task lists, footnotes, images, wiki-links)
 - ✅ **Inter-note Links**: 100% (backlinks pane, link following, navigation history, autocomplete, extract & store)
 - ✅ **Knowledge Graph**: 100% (force-directed layout, Canvas rendering, pan/zoom, node selection, navigation)
+- ✅ **LLM Wiki Phase 0**: 100% (cleanup, roadmap, .skills/ schema)
+- ✅ **LLM Wiki Phase 1**: 100% (index.md generation, activity log)
+- ✅ **LLM Wiki Phase 2**: 100% (raw sources, ingest pipeline, schema migration)
+- ✅ **LLM Wiki Phase 3**: 100% (.skills/ infrastructure, generator, init-skills CLI)
+- ✅ **LLM Wiki Phase 4**: 100% (LLM provider trait, Ollama/OpenAI/Anthropic, context builder, usage tracker)
+- ✅ **LLM Wiki Phase 5**: 100% (workflow engine, ingest/query/lint workflows, ask/lint CLI)
+- ✅ **LLM Wiki Phase 6**: 100% (MCP server -- stdio transport, 9 tools, 67 tests)
+- ✅ **Document Conversion**: 100% (PDF, DOCX, PPTX, XLSX, HTML, CSV, JSON, XML → Markdown)
+- ✅ **Progress Indicators**: 100% (multi-stage progress, spinner animations)
+- ✅ **LLM Post-Processor**: 100% (note validation, formatting fixes)
+- ✅ **Extended LLM Providers**: 100% (Gemini, OpenRouter, NVIDIA)
+
+---
+
+## 🔄 RECENT IMPROVEMENTS (April 10, 2026)
+
+### Progress Indicators for CLI
+
+Multi-stage progress feedback during `--process` operations:
+
+**New Module** (`src/progress.rs`):
+- `ProcessProgress` — Multi-phase progress with spinner animations
+- `ProcessingPhase` enum: ReadingSource, Converting, SendingToLLM, CreatingNote, UpdatingIndex
+- `SimpleProgress` — Single-operation progress
+- Visual feedback: `◐◓◑◒` spinners, success (`✓`) and error (`✗`) markers
+
+**Integration** (`src/cli.rs`):
+- Progress indicator shows current phase during LLM processing
+- Clear status messages replace silent waiting
+- Better UX for long-running operations
+
+### Improved LLM Prompts
+
+More concise literature notes with better structure:
+
+**Changes** (`src/llm/workflows/ingest.rs`):
+- Prompt now requests 200-400 words (down from unlimited)
+- Explicit output STRUCTURE: Summary, Key Points, Notable Quotes, Connections
+- Added CONSTRAINTS section: no introductions, no filler, be factual
+- Default system prompt updated with quality guidelines
+
+### LLM Post-Processor
+
+Automatic formatting fixes for poor-quality model output:
+
+**New Module** (`src/llm/post_processor.rs`):
+- `LiteratureNoteProcessor::validate_and_fix()` — Ensures proper note structure
+- Auto-adds frontmatter if missing (`type`, `source`)
+- Normalizes wiki-links (fixes spacing, pipes)
+- Removes excessive whitespace
+- Caps length at ~1500 chars for verbose models
+
+### New LLM Providers
+
+Extended provider support for 6 backends total:
+
+**Providers** (`src/llm/`):
+| Provider | Models | Auth |
+|-----------|--------|------|
+| **Ollama** | llama3, mistral, codellama, etc. | None (local) |
+| **OpenAI** | gpt-4o, gpt-4o-mini, o3, etc. | `OPENAI_API_KEY` |
+| **Anthropic** | claude-sonnet-4, claude-haiku | `ANTHROPIC_API_KEY` |
+| **Google Gemini** | gemini-2.0-flash, gemini-1.5-pro | `GOOGLE_API_KEY` |
+| **OpenRouter** | 200+ models (aggregator) | `OPENROUTER_API_KEY` |
+| **NVIDIA NIM** | meta/llama-3.1-8b, etc. | `NVIDIA_API_KEY` |
+
+**Pricing Estimation** (`src/llm/usage.rs`):
+- Added Gemini pricing (free tier for gemini-2, paid for 1.5-pro)
+- OpenRouter/NVIDIA default to $0 (varies by model)
+
+**Config** (`config.example.toml`):
+- Updated with all provider examples
+- Model recommendations for each provider
+- Environment variable documentation
+
+---
+
+Multi-format document conversion for the LLM Wiki workflow:
+
+**New Dependencies:**
+- `anytomd v1.2` — Converts DOCX, PPTX, XLSX, HTML, CSV, JSON, XML, images to Markdown
+- `pdf-extract v0.10` — Extracts text from PDF files
+- `epub v2.1` — Parses EPUB ebooks for HTML extraction
+
+**New Module** (`src/source/convert.rs`):
+- `DocumentFormat` enum: PDF, EPUB, Generic (anytomd)
+- `convert_to_markdown(path)` — Auto-detects format and converts to Markdown
+- `convert_pdf()` — PDF text extraction
+- `convert_epub()` — EPUB HTML extraction and conversion
+- `convert_anytomd()` — Delegates to anytomd for all other formats
+- `extract_text_from_html()` — HTML to plain text (for EPUB)
+- `parse_entity()` — HTML entity decoder
+- 16 unit tests covering format detection, conversion, and HTML parsing
+
+**Integration:**
+- Modified `read_source_content()` in `src/llm/workflow.rs` to auto-convert non-Markdown files
+- Markdown and text files pass through unchanged
+- All other formats are converted before LLM processing
+
+**Supported Formats:**
+| Format | Converter | Notes |
+|--------|-----------|-------|
+| PDF | pdf-extract | Text extraction |
+| EPUB | epub + anytomd | HTML extraction |
+| DOCX | anytomd | Full support |
+| PPTX | anytomd | Full support |
+| XLSX/XLS | anytomd | Full support |
+| HTML/HTM | anytomd | Full support |
+| CSV | anytomd | Converted to Markdown tables |
+| JSON/XML | anytomd | Pretty-printed in code blocks |
+| Images | anytomd | Optional LLM-based description |
+| Code files | anytomd | Fenced code blocks with language ID |
 
 ---
 
@@ -248,11 +360,18 @@ Comprehensive help system accessible via `?` or `:help`:
 
 | Comando | Descrição |
 |---------|-----------|
-| `ztlgr new <path>` | Cria vault com estrutura Zettelkasten completa |
-| `ztlgr open [path]` | Abre vault existente na TUI |
+| `ztlgr new <path>` | Cria grimoire com estrutura Zettelkasten completa |
+| `ztlgr open [path]` | Abre grimoire existente na TUI |
 | `ztlgr search <query>` | Busca notas via FTS5 |
 | `ztlgr import <source>` | Importa notas de diretório |
-| `ztlgr sync` | Sincroniza vault com database |
+| `ztlgr sync` | Sincroniza grimoire com database |
+| `ztlgr index` | Gera/atualiza index.md do grimoire |
+| `ztlgr ingest <file>` | Ingere arquivo fonte no `raw/` |
+| `ztlgr ingest --process` | Ingere + processa com LLM (gera nota de literatura) |
+| `ztlgr ask "<question>"` | Consulta o grimoire via LLM |
+| `ztlgr lint [--full]` | Lint local (sem LLM) ou completo (com LLM) |
+| `ztlgr mcp` | Inicia MCP server (JSON-RPC over stdio) |
+| `ztlgr init-skills` | Gera/valida `.skills/` no grimoire |
 | `ztlgr --help` | Ajuda completa |
 | `ztlgr --version` | Versão |
 
@@ -261,6 +380,8 @@ Comprehensive help system accessible via `?` or `:help`:
 - `-f, --format <fmt>` - Formato: `markdown` ou `org`
 - `-c, --config <path>` - Arquivo de configuração (env: `ZTLGR_CONFIG`)
 - `-v, --verbose` - Nível de verbosidade
+- `--no-git` - Não inicializar repositório git (apenas `ztlgr new`)
+- `--no-skills` - Não gerar `.skills/` (apenas `ztlgr new`)
 
 **Comportamento:**
 - Sem argumentos → Setup Wizard interativo (compatibilidade retroativa)
@@ -327,25 +448,287 @@ Comprehensive help system accessible via `?` or `:help`:
 
 ## 🟠 PRÓXIMOS PASSOS
 
-### Sprint Atual: Graph Enhancements & Quality of Life
+### Nova Direção: LLM Wiki Integration
 
+> **Branch:** `feat/llm-wiki-integration`
+> **Roadmap completo:** `docs/ROADMAP-LLM-WIKI.md`
+
+Evolução do ztlgr para suportar o padrão "LLM Wiki" -- onde agentes LLM
+mantêm incrementalmente a base de conhecimento (cross-references, summaries,
+entity pages) ao invés de re-derivar conhecimento a cada query.
+
+### Phase 0: Cleanup & Foundation (em andamento)
+- [x] Remover referências aspiracionais a "multi-agent" (README, CONTRIBUTING, CHANGELOG)
+- [x] Criar `.skills/` -- schema e workflows para agentes LLM
+- [x] Criar `docs/ROADMAP-LLM-WIKI.md` com plano de ação
+- [x] Atualizar STATUS.md com nova direção
+
+### ✅ Phase 1: Index & Log System (+53 tests, 486 total)
+- [x] `index.md` auto-gerado a partir do DB (agrupado por tipo, one-line summaries)
+- [x] `log.md` activity log append-only (sync, create, delete, import, index)
+- [x] `ztlgr index` CLI command
+- [x] `src/storage/index_generator.rs` (20 tests)
+- [x] `src/storage/activity_log.rs` (16 tests)
+- [x] DB helpers: `count_notes_by_type()`, `count_notes()`, `count_links()`, `list_notes_by_type()` (14 tests)
+- [x] CLI: `ztlgr index --vault <path>` (3 tests)
+- [x] Hooks: `ztlgr sync --force` regenerates index + writes activity log
+- [x] Hooks: `ztlgr import` writes activity log
+
+### ✅ Phase 2: Raw Sources Layer (+66 tests, 552 total)
+- [x] Diretório `raw/` criado durante vault init para fontes imutáveis
+- [x] Tabela `sources` no DB (id, title, origin, hash, file_path, file_size, mime_type, ingested_at)
+- [x] Schema migration v1 → v2 (`migration_v2.sql`, auto-applied on DB open)
+- [x] `src/source/mod.rs` — `Source` struct, `SourceId`, builder pattern (9 tests)
+- [x] `src/source/ingest.rs` — `Ingester` with SHA-256 dedup, copy to `raw/`, DB + log integration (~15 tests)
+- [x] `src/db/schema.rs` — `get_schema_version()`, `migrate()`, 6 source CRUD methods (~20 tests)
+- [x] `src/storage/index_generator.rs` — Sources section in index, `format_file_size()` (7 new tests)
+- [x] `src/storage/activity_log.rs` — `Ingest` activity kind, `log_ingest()` (1 new test)
+- [x] `ztlgr ingest <file> [--title <name>]` CLI command (6 tests)
+- [x] Error variants: `SourceNotFound`, `Ingest`, `Migration`
+- [x] `sha2` crate added for content hashing
+
+### ✅ Phase 3: .skills/ Infrastructure (+53 tests, 605 total)
+- [x] `src/skills/mod.rs` — `Skills` struct, `ValidationReport`, loader, file readers, `list_files()` (17 tests)
+- [x] `src/skills/generator.rs` — `SkillsGenerator`, 12 content generators, `GenerateResult` with created/skipped (28 tests)
+- [x] `ztlgr init-skills --vault <path>` CLI command (validates, fills missing files)
+- [x] `--no-skills` flag for `ztlgr new` (skip .skills/ generation)
+- [x] Default .skills/ generation during `ztlgr new` and setup wizard
+- [x] `prompt_init_skills()` in setup wizard (Y/n prompt)
+- [x] Error variant: `Skills(String)`
+- [x] CLI tests: skills by default, skip with flag, vault name in skills, init-skills success, nonexistent vault, idempotent, fills missing files (7 new tests)
+- [x] Help modal updated with `init-skills` command
+
+### ✅ Phase 4: LLM Provider Abstraction (+122 tests, 727 total)
+- [x] `src/llm/provider.rs` — `LlmProvider` trait (`Pin<Box<dyn Future>>` for object safety), `Role`, `Message`, `LlmRequest` (builder), `LlmResponse`, `TokenUsage` (16 tests)
+- [x] `src/llm/mod.rs` — `ProviderKind` enum (Ollama, OpenAi, Anthropic) with `FromStr`, `create_provider()` factory (17 tests)
+- [x] `src/llm/ollama.rs` — `OllamaProvider` with Ollama Chat API format, local-first (11 tests)
+- [x] `src/llm/openai.rs` — `OpenAiProvider` with OpenAI Chat Completions API (14 tests)
+- [x] `src/llm/anthropic.rs` — `AnthropicProvider` with Anthropic Messages API (system as top-level field) (18 tests)
+- [x] `src/llm/context.rs` — `ContextBuilder` loads `.skills/` files, builds system prompts, estimates tokens (18 tests)
+- [x] `src/llm/usage.rs` — `UsageTracker` per-model cost estimation, activity log integration, hardcoded pricing (26 tests)
+- [x] `src/config/settings.rs` — `LlmConfig` struct (enabled, provider, model, api_base, api_key_env, max_tokens, temperature) with `#[serde(default)]` (4 tests)
+- [x] `config.example.toml` — `[llm]` section with full documentation
+- [x] `src/storage/activity_log.rs` — `Llm` variant in `ActivityKind`
+- [x] `Cargo.toml` — Added `reqwest` 0.12 with `rustls-tls`
+- [x] Error variants: `Llm(String)`, `LlmProvider(String)`
+- [x] API keys read from env vars, NEVER stored in config files
+- [x] Ollama is default (local-first, no API key needed)
+
+### ✅ Phase 5: LLM Workflows (+70 tests, 797 total)
+- [x] `src/llm/workflow.rs` — `WorkflowEngine` with manual `Debug` impl, `build_context()`, `execute()`, `finish()`, `require_llm_enabled()`, `read_source_content()`, `truncate_to_token_budget()` (21 tests)
+- [x] `src/llm/workflows/ingest.rs` — `IngestWorkflow::process()`: reads source from `raw/`, LLM generates literature note, writes to `literature/`, regenerates index (11 tests)
+- [x] `src/llm/workflows/query.rs` — `QueryWorkflow::ask()`: FTS5 search + index.md context, LLM synthesizes answer with `[[wiki-link]]` citations (13 tests)
+- [x] `src/llm/workflows/lint.rs` — `LintWorkflow::local_lint()` (no LLM) + `full_lint()` (LLM-assisted): orphan notes, short notes, unprocessed sources, `LintReport` with `to_markdown()` (19 tests)
+- [x] `ztlgr ingest --process` — Ingest + LLM processing in one step (`cmd_ingest` now async)
+- [x] `ztlgr ask "<question>"` — CLI command for querying the grimoire via LLM
+- [x] `ztlgr lint [--full]` — Local lint (no LLM) or full lint (LLM-assisted)
+- [x] `load_config()` helper for consistent config loading across commands
+- [x] `#[serde(default)]` added to `Config` and `LlmConfig` for partial TOML support
+- [x] CLI tests: config loading, ask, lint commands (8 new tests)
+- [x] Help modal updated with `--process`, `ask`, `lint` commands
+
+### ✅ Phase 6: MCP Server (+67 tests, 867 total)
+- [x] `src/mcp/mod.rs` — JSON-RPC 2.0 types, MCP lifecycle structs, `InitializeParams`, `InitializeResult`, `ToolDefinition`, `ToolCallResult` (21 tests)
+- [x] `src/mcp/tools.rs` — 9 tool definitions and handlers: search, get_note, list_notes, create_note, get_backlinks, ingest_source, read_index, read_log, read_skills (45 tests)
+- [x] `src/mcp/server.rs` — Stdio transport, `ServerState` state machine, `process_message()`, `run_server()` (21 tests)
+- [x] `ztlgr mcp` — CLI command to start MCP server over stdio
+- [x] Protocol: JSON-RPC 2.0 over stdin/stdout, newline-delimited
+- [x] Lifecycle: initialize → initialized → operation (tools/list, tools/call) → shutdown
+- [x] Error variants: `Mcp(String)` added to `ZtlgrError`
+- [x] Help modal updated with `mcp` command
+
+### Backlog (mantido do sprint anterior)
 - [ ] Graph filtering by note type, tags, or link depth
-- [ ] Graph zoom-to-fit on window resize
-- [ ] Graph hover/tooltip showing note metadata
-
-### Futuro:
-
 - [ ] Search filters (by type/tags/status/date)
-- [ ] Advanced CLI commands (`ztlgr note create`, `ztlgr export`)
-- [ ] Notifications/toasts in TUI
-- [ ] Sync status indicator
-- [ ] Auto-backup system
 - [ ] Note templates
 - [ ] Daily notes auto-creation
 
 ---
 
-## Como Testar
+## Future Enhancements (baseado em LLM Wiki Community)
+
+Conceitos identificados nos comentários do gist LLM Wiki que podem enriquecer o ztlgr:
+
+### P1: Confidence-Tagged Claims (Alto Valor, Baixa Complexidade)
+
+**Problema:** Contradições entre notas são difíceis de detectar automaticamente.
+
+**Solução:** Adicionar campo `confidence` no YAML frontmatter:
+```yaml
+---
+title: "Rails Performance Guide"
+confidence: high    # high | medium | low
+last_reviewed: 2026-04-09
+---
+```
+
+**Implementação:**
+- [ ] Adicionar `confidence` ao `Note` struct
+- [ ] Modifier `lint --full` para detectar contradições
+- [ ] Query MCP: `get_contradictions()` — WHERE confidence=high AND claims conflict
+
+**Benefício:** Torna audit do wiki semi-automático em vez de fuzzy re-read.
+
+### P2: WIP.md para Continuidade de Sessão (Alto Valor, Média Complexidade)
+
+**Problema:** `log.md` registra ações completadas, mas pensamentos em progresso desaparecem entre sessões.
+
+**Solução:** Criar `wip.md` (Work In Progress):
+```markdown
+# Work in Progress
+
+## [2026-04-09] Explorando: async Rust patterns
+Question: How does tokio::select! handle cancellation?
+Status: investigating
+Related: [[Rust Concurrency]], [[Tokio Internals]]
+Sources: raw/tokio-docs.md
+
+## [2026-04-08] Thesis: ML architectures for NLP
+Claim: Transformers are limited by quadratic attention
+Confidence: medium
+Evidence: [[Attention Paper]], [[Efficient Transformers]]
+Counter-evidence: [[Linear Attention Variants]]
+```
+
+**Implementação:**
+- [ ] Criar `.ztlgr/wip.md` durante `Vault::initialize()`
+- [ ] Comando `ztlgr wip` para gerenciar (add/list/complete)
+- [ ] Integrar com Query: LLM lê WIP para contexto
+
+**Benefício:** Sessões de pesquisa são retomáveis; perguntas em aberto não se perdem.
+
+### P3: Link Resolution at Write Time (Alto Valor, Média Complexidade)
+
+**Problema:** `[[Wiki Links]]` são texto. LLM pode criar links para notas inexistentes → 404.
+
+**Solução:** Validar e resolver links no momento da escrita:
+```rust
+// Ao criar nota:
+let content = NoteBuilder::new()
+    .title("Summary")
+    .wiki_link("Rust Async Patterns", &db)?  // Valida contra DB
+    .wiki_link_or_create("New Concept", &db)? // Cria stub se não existe
+    .build();
+```
+
+**Implementação:**
+- [ ] `LinkValidator::validate_all_links()` retorna lista de broken links
+- [ ] `NoteBuilder` API para construir notas com links validados
+- [ ] MCP tool `validate_links` — retorna broken links
+
+**Benefício:** Elimina hallucinated links; wiki integrity garantida.
+
+### P4: Progressive Disclosure no MCP (Médio Valor, Baixa Complexidade)
+
+**Problema:** `search` retorna conteúdo completo → contexto desperdiçado.
+
+**Solução:** Nova tool MCP `search_brief`:
+```json
+{
+  "name": "search_brief",
+  "arguments": {
+    "query": "async patterns",
+    "limit": 10
+  }
+}
+// Returns: [{title, type, date, confidence, snippet(50 chars)}]
+```
+
+**Implementação:**
+- [ ] Adicionar tool `search_brief` ao MCP
+- [ ] Usar `snippet` field do FTS5 para extração rápida
+
+**Benefício:** Agent pode escolher quais notas expandir; <400 tokens vs 4000.
+
+### P5: Contradiction Detection no Lint (Médio Valor, Média Complexidade)
+
+**Problema:** Contradições são detectadas manualmente pelo LLM no `lint --full`.
+
+**Solução:** Detecção determinística:
+```rust
+// No lint:
+// 1. Extrair claims com confidence=high
+// 2. Comparar com outros claims sobre mesmo tópico
+// 3. Flag contradições
+// Ex: "Raft is simpler than Paxos" vs "Raft and Paxos have similar complexity"
+```
+
+**Implementação:**
+- [ ] Adicionar `claim_extractor` no lint
+- [ ] Comparação semântica via embeddings ou heurística simples
+- [ ] Output: `## Contradictions` no lint report
+
+**Benefício:** Audit automático de contradições sem LLM chamar.
+
+### P6: Auto-Pruning / Decay (Baixo Valor, Alta Complexidade)
+
+**Problema:** Wiki cresce indefinidamente; notas antigas ficam desatualizadas.
+
+**Solução:** Sistema de decay:
+```yaml
+---
+last_reviewed: 2026-01-15
+importance: high    # high | medium | low
+decay_rate: 30      # days until stale
+---
+```
+
+**Implementação:**
+- [ ] Adicionar campos ao `Note` struct
+- [ ] `ztlgr lint --stale` lista notas que precisam review
+- [ ] Workflow sugere notas antigas importante para review
+
+**Benefício:** Wiki permanece atual; conhecimento stale é sinalizado.
+
+---
+
+## Implementation Plan (Pós-Phase 6)
+
+### Sprint 1: Confidence & WIP (Coleção de Feedback)
+
+| Prioridade | Feature | Estimativa | Pré-requisitos |
+|------------|---------|------------|----------------|
+| P1 | Confidence no frontmatter | 1 dia | None |
+| P1 | Contradições no lint | 2 dias | Confidence |
+| P2 | WIP.md creation | 1 dia | None |
+| P2 | `ztlgr wip` commands | 2 dias | WIP.md |
+| P3 | Link validation at write | 2 dias | None |
+| P4 | `search_brief` tool | 1 dia | MCP Server |
+
+**Total:** ~9 dias
+
+### Sprint 2: Integration & Polish
+
+| Prioridade | Feature | Estimativa | Pré-requisitos |
+|------------|---------|------------|----------------|
+| P3 | `NoteBuilder` API | 2 dias | None |
+| P3 | `validate_links` tool | 1 dia | NoteBuilder |
+| P5 | Contradiction detection | 3 dias | Confidence |
+| P5 | Embeddings support (opcional) | 2 dias | None |
+
+**Total:** ~8 dias
+
+### Sprint 3: Advanced Features
+
+| Prioridade | Feature | Estimativa | Pré-requisitos |
+|------------|---------|------------|----------------|
+| P6 | Decay system | 2 dias | None |
+| P6 | `ztlgr stale` command | 1 dia | Decay |
+| - | Multi-vault support | 3 dias | None |
+| - | Cloud sync (opcional) | 5 dias | None |
+
+**Total:** ~11 dias
+
+### Critérios de Priorização
+
+1. **Valor para o padrão LLM Wiki:** P1/P2 são críticos para o ciclo ingest → query → lint.
+2. **Feedback da comunidade:** WIP.md foi mencionado por múltiplos implementadores.
+3. **Complexidade:** Confidence é trivial de adicionar; embeddings é complexo.
+4. **Dependencies:** Link validation é independente; decay precisa de infra.
+
+---
+
+## Como Testar Versões Futuras
 
 ### Com Nix (Recomendado)
 
@@ -370,10 +753,10 @@ cargo run
 ### CLI Commands
 
 ```bash
-# Criar novo vault
+# Criar novo grimoire
 ztlgr new ~/my-notes --format markdown
 
-# Abrir vault
+# Abrir grimoire
 ztlgr open ~/my-notes
 
 # Buscar notas
@@ -382,8 +765,28 @@ ztlgr search "rust zettelkasten" --vault ~/my-notes
 # Importar notas existentes
 ztlgr import ~/old-notes --vault ~/my-notes --recursive
 
-# Sincronizar
+# Sincronizar (regenera index + activity log)
 ztlgr sync --vault ~/my-notes --force
+
+# Gerar/atualizar index
+ztlgr index --vault ~/my-notes
+
+# Ingerir arquivo fonte (copia para raw/, registra no DB)
+ztlgr ingest ~/papers/article.pdf --vault ~/my-notes
+ztlgr ingest ~/papers/article.pdf --title "My Article" --vault ~/my-notes
+
+# Gerar/validar .skills/ (preenche arquivos faltantes)
+ztlgr init-skills --vault ~/my-notes
+
+# Consultar o grimoire via LLM
+ztlgr ask "What is the Zettelkasten method?" --vault ~/my-notes
+
+# Lint local (sem LLM) ou completo (com LLM)
+ztlgr lint --vault ~/my-notes
+ztlgr lint --full --vault ~/my-notes
+
+# Ingerir + processar com LLM (gera nota de literatura)
+ztlgr ingest ~/papers/article.pdf --process --vault ~/my-notes
 ```
 
 ---
@@ -407,8 +810,29 @@ ztlgr sync --vault ~/my-notes --force
                  ▲
                  │
 ┌─────────────────────────────────────────────┐
-│              CLI (clap)                      │
-│  new | open | search | import | sync        │
+│              CLI (clap)                          │
+│  new | open | search | import | sync | index     │
+│  ingest | init-skills | ask | lint                │
+└─────────────────────────────────────────────┘
+                 │
+                 ▼
+┌─────────────────────────────────────────────┐
+│        LLM Workflow Layer (Phase 5)              │
+│  ┌──────────┬──────────┬────────────────┐   │
+│  │  Ingest  │  Query   │     Lint       │   │
+│  │ Workflow │ Workflow  │   Workflow     │   │
+│  └──────────┴──────────┴────────────────┘   │
+│        WorkflowEngine (orchestrator)             │
+└─────────────────────────────────────────────┘
+                 │
+                 ▼
+┌─────────────────────────────────────────────┐
+│         LLM Provider Layer (Phase 4)             │
+│  ┌─────────┬──────────┬──────────────────┐  │
+│  │ Ollama  │  OpenAI  │   Anthropic      │  │
+│  │ (local) │  (cloud) │   (cloud)        │  │
+│  └─────────┴──────────┴──────────────────┘  │
+│  ContextBuilder (loads .skills/) │ UsageTracker │
 └─────────────────────────────────────────────┘
                  │
                  ▼
@@ -417,6 +841,7 @@ ztlgr sync --vault ~/my-notes --force
         │  ┌───────────────────┐  │
         │  │   SQLite Index    │  │
         │  │  (FTS5 + Graph)   │  │
+        │  │  + Sources (v2)   │  │
         │  └───────────────────┘  │
         └─────────────────────────┘
                      │
@@ -430,15 +855,17 @@ ztlgr sync --vault ~/my-notes --force
      └────────────────────────────────┘
                      │
                      ▼
-     ┌────────────────────────────────┐
-     │   File System                   │
-     │   ~/vault/permanent/*.md        │
-     │   ~/vault/inbox/*.md            │
-     │   ~/vault/.ztlgr/vault.db       │
-     └────────────────────────────────┘
+     ┌────────────────────────────────────────┐
+     │   File System                          │
+     │   ~/vault/permanent/*.md               │
+     │   ~/vault/inbox/*.md                   │
+     │   ~/vault/raw/* (immutable sources)    │
+     │   ~/vault/.skills/* (LLM agent schema) │
+     │   ~/vault/.ztlgr/vault.db              │
+     └────────────────────────────────────────┘
 ```
 
 ---
 
-**Status**: 🟢 v0.5.0 Released - Knowledge Graph Visualization Complete  
-**Próximo**: Graph enhancements (filtering, zoom-to-fit, tooltips).
+**Status**: 🟢 v0.5.0 Released - LLM Wiki Phase 6 Complete (MCP Server)  
+**Próximo**: Merge to main, release v0.6.0 with full LLM Wiki integration (Phases 0-6 complete).

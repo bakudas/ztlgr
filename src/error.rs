@@ -46,6 +46,30 @@ pub enum ZtlgrError {
 
     #[error("Vault not found: {0}")]
     VaultNotFound(String),
+
+    #[error("Git error: {0}")]
+    Git(String),
+
+    #[error("Source not found: {0}")]
+    SourceNotFound(String),
+
+    #[error("Ingest error: {0}")]
+    Ingest(String),
+
+    #[error("Migration error: {0}")]
+    Migration(String),
+
+    #[error("Skills error: {0}")]
+    Skills(String),
+
+    #[error("LLM error: {0}")]
+    Llm(String),
+
+    #[error("LLM provider error: {0}")]
+    LlmProvider(String),
+
+    #[error("MCP server error: {0}")]
+    Mcp(String),
 }
 
 pub type Result<T> = std::result::Result<T, ZtlgrError>;

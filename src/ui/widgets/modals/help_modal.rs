@@ -266,11 +266,11 @@ impl HelpModal {
         lines.push(Line::from(Span::styled("CLI Commands", heading_style)));
         lines.push(Line::from(vec![
             Span::styled("ztlgr new <path>       ", key_style),
-            Span::styled("  Create vault", fg_style),
+            Span::styled("  Create grimoire", fg_style),
         ]));
         lines.push(Line::from(vec![
             Span::styled("ztlgr open [path]      ", key_style),
-            Span::styled("  Open vault in TUI", fg_style),
+            Span::styled("  Open grimoire in TUI", fg_style),
         ]));
         lines.push(Line::from(vec![
             Span::styled("ztlgr search <query>   ", key_style),
@@ -282,7 +282,35 @@ impl HelpModal {
         ]));
         lines.push(Line::from(vec![
             Span::styled("ztlgr sync             ", key_style),
-            Span::styled("  Sync vault with DB", fg_style),
+            Span::styled("  Sync grimoire with DB", fg_style),
+        ]));
+        lines.push(Line::from(vec![
+            Span::styled("ztlgr index            ", key_style),
+            Span::styled("  Generate grimoire index", fg_style),
+        ]));
+        lines.push(Line::from(vec![
+            Span::styled("ztlgr ingest <file>    ", key_style),
+            Span::styled("  Ingest source into raw/", fg_style),
+        ]));
+        lines.push(Line::from(vec![
+            Span::styled("  --process            ", key_style),
+            Span::styled("  LLM-process after ingest", fg_style),
+        ]));
+        lines.push(Line::from(vec![
+            Span::styled("ztlgr ask <question>   ", key_style),
+            Span::styled("  Ask the grimoire (LLM)", fg_style),
+        ]));
+        lines.push(Line::from(vec![
+            Span::styled("ztlgr lint [--full]    ", key_style),
+            Span::styled("  Lint grimoire quality", fg_style),
+        ]));
+        lines.push(Line::from(vec![
+            Span::styled("ztlgr init-skills      ", key_style),
+            Span::styled("  Generate .skills/ for LLMs", fg_style),
+        ]));
+        lines.push(Line::from(vec![
+            Span::styled("ztlgr mcp              ", key_style),
+            Span::styled("  Start MCP server (stdio)", fg_style),
         ]));
         lines.push(Line::from(vec![
             Span::styled("ztlgr --help           ", key_style),

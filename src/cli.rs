@@ -4,13 +4,19 @@ use std::path::{Path, PathBuf};
 use crate::config::Config;
 use crate::db::Database;
 use crate::error::{Result, ZtlgrError};
-use crate::storage::{FileImporter, FileSync, Format, Vault};
+use crate::llm::workflows::{IngestWorkflow, LintWorkflow, QueryWorkflow};
+use crate::mcp::server::{run_server, McpServerConfig};
+use crate::progress::ProcessProgress;
+use crate::skills::generator::SkillsGenerator;
+use crate::skills::Skills;
+use crate::source::ingest::Ingester;
+use crate::storage::{ActivityLog, FileImporter, FileSync, Format, IndexGenerator, Vault};
 use crate::ui::App;
 
 #[derive(Parser)]
 #[command(version, author, about, long_about = None)]
 pub struct Cli {
-    /// Vault directory path
+    /// Grimoire directory path
     #[arg(long, env = "ZTLGR_VAULT")]
     pub vault: Option<PathBuf>,
 
@@ -32,19 +38,27 @@ pub struct Cli {
 
 #[derive(Subcommand)]
 pub enum Commands {
-    /// Create a new vault
+    /// Create a new grimoire
     New {
-        /// Vault path
+        /// Grimoire path
         path: PathBuf,
 
         /// Note format (markdown or org)
         #[arg(short, long, default_value = "markdown")]
         format: Option<String>,
+
+        /// Skip git repository initialization
+        #[arg(long)]
+        no_git: bool,
+
+        /// Skip .skills/ directory generation
+        #[arg(long)]
+        no_skills: bool,
     },
 
-    /// Open an existing vault in the TUI
+    /// Open an existing grimoire in the TUI
     Open {
-        /// Vault path
+        /// Grimoire path
         path: Option<PathBuf>,
     },
 
@@ -53,7 +67,7 @@ pub enum Commands {
         /// Source directory
         source: PathBuf,
 
-        /// Vault path
+        /// Grimoire path
         #[arg(long)]
         vault: Option<PathBuf>,
 
@@ -62,9 +76,9 @@ pub enum Commands {
         recursive: bool,
     },
 
-    /// Sync vault files with database
+    /// Sync grimoire files with database
     Sync {
-        /// Vault path
+        /// Grimoire path
         #[arg(long)]
         vault: Option<PathBuf>,
 
@@ -78,13 +92,73 @@ pub enum Commands {
         /// Search query
         query: String,
 
-        /// Vault path
+        /// Grimoire path
         #[arg(long)]
         vault: Option<PathBuf>,
 
         /// Maximum results
         #[arg(short, long, default_value = "50")]
         limit: usize,
+    },
+
+    /// Generate or update the grimoire index
+    Index {
+        /// Grimoire path
+        #[arg(long)]
+        vault: Option<PathBuf>,
+    },
+
+    /// Ingest a source file into the raw/ directory
+    Ingest {
+        /// Source file to ingest
+        file: PathBuf,
+
+        /// Title for the source (defaults to filename)
+        #[arg(short, long)]
+        title: Option<String>,
+
+        /// Process the source with LLM after ingest (creates literature note)
+        #[arg(long)]
+        process: bool,
+
+        /// Grimoire path
+        #[arg(long)]
+        vault: Option<PathBuf>,
+    },
+
+    /// Ask a question and get an answer from the grimoire (requires LLM)
+    Ask {
+        /// The question to ask
+        question: String,
+
+        /// Grimoire path
+        #[arg(long)]
+        vault: Option<PathBuf>,
+    },
+
+    /// Lint the grimoire for quality issues
+    Lint {
+        /// Run full LLM-powered analysis (default: local only)
+        #[arg(long)]
+        full: bool,
+
+        /// Grimoire path
+        #[arg(long)]
+        vault: Option<PathBuf>,
+    },
+
+    /// Generate .skills/ directory for LLM agents
+    InitSkills {
+        /// Grimoire path
+        #[arg(long)]
+        vault: Option<PathBuf>,
+    },
+
+    /// Start MCP server (Model Context Protocol) over stdio
+    Mcp {
+        /// Grimoire path
+        #[arg(long)]
+        vault: Option<PathBuf>,
     },
 }
 
@@ -99,8 +173,15 @@ pub async fn execute(cli: &Cli) -> Result<()> {
         Some(Commands::New {
             path,
             format: cmd_format,
+            no_git,
+            no_skills,
         }) => {
-            cmd_new(path, cmd_format.as_deref().unwrap_or(&cli.format))?;
+            cmd_new(
+                path,
+                cmd_format.as_deref().unwrap_or(&cli.format),
+                *no_git,
+                *no_skills,
+            )?;
         }
         Some(Commands::Open { path }) => {
             let vault_path = resolve_vault_path(path.as_ref(), cli.vault.as_ref())?;
@@ -129,6 +210,48 @@ pub async fn execute(cli: &Cli) -> Result<()> {
             let vault_path = resolve_vault_path(cmd_vault.as_ref(), cli.vault.as_ref())?;
             cmd_search(&vault_path, query, *limit, format)?;
         }
+        Some(Commands::Index { vault: cmd_vault }) => {
+            let vault_path = resolve_vault_path(cmd_vault.as_ref(), cli.vault.as_ref())?;
+            cmd_index(&vault_path, format)?;
+        }
+        Some(Commands::Ingest {
+            file,
+            title,
+            process,
+            vault: cmd_vault,
+        }) => {
+            let vault_path = resolve_vault_path(cmd_vault.as_ref(), cli.vault.as_ref())?;
+            cmd_ingest(
+                file,
+                title.as_deref(),
+                &vault_path,
+                *process,
+                cli.config.as_ref(),
+            )
+            .await?;
+        }
+        Some(Commands::Ask {
+            question,
+            vault: cmd_vault,
+        }) => {
+            let vault_path = resolve_vault_path(cmd_vault.as_ref(), cli.vault.as_ref())?;
+            cmd_ask(&vault_path, question, cli.config.as_ref()).await?;
+        }
+        Some(Commands::Lint {
+            full,
+            vault: cmd_vault,
+        }) => {
+            let vault_path = resolve_vault_path(cmd_vault.as_ref(), cli.vault.as_ref())?;
+            cmd_lint(&vault_path, *full, cli.config.as_ref()).await?;
+        }
+        Some(Commands::InitSkills { vault: cmd_vault }) => {
+            let vault_path = resolve_vault_path(cmd_vault.as_ref(), cli.vault.as_ref())?;
+            cmd_init_skills(&vault_path)?;
+        }
+        Some(Commands::Mcp { vault: cmd_vault }) => {
+            let vault_path = resolve_vault_path(cmd_vault.as_ref(), cli.vault.as_ref())?;
+            cmd_mcp(&vault_path, format)?;
+        }
         None => {
             run_default_tui(cli).await?;
         }
@@ -137,7 +260,7 @@ pub async fn execute(cli: &Cli) -> Result<()> {
     Ok(())
 }
 
-fn cmd_new(path: &Path, format_str: &str) -> Result<()> {
+fn cmd_new(path: &Path, format_str: &str, no_git: bool, no_skills: bool) -> Result<()> {
     let format = parse_format(format_str);
     let vault = Vault::new(path.to_path_buf(), format);
 
@@ -147,7 +270,35 @@ fn cmd_new(path: &Path, format_str: &str) -> Result<()> {
 
     vault.initialize()?;
 
-    println!("Vault created at {}", path.display());
+    // Generate .skills/ (unless --no-skills)
+    if !no_skills {
+        let vault_name = path
+            .file_name()
+            .and_then(|n| n.to_str())
+            .unwrap_or("grimoire");
+        let generator = SkillsGenerator::new(vault_name);
+        match generator.generate(path) {
+            Ok(result) => {
+                println!("  .skills/ generated ({} files)", result.files_created);
+            }
+            Err(e) => {
+                eprintln!("  Warning: .skills/ generation failed: {}", e);
+            }
+        }
+    }
+
+    // Git initialization (unless --no-git)
+    if !no_git {
+        match vault.git_init() {
+            Ok(true) => println!("  Git repository initialized"),
+            Ok(false) => {} // git not available, skip silently
+            Err(e) => {
+                eprintln!("  Warning: git init failed: {}", e);
+            }
+        }
+    }
+
+    println!("Grimoire created at {}", path.display());
     println!("  Format: {}", format.extension());
     println!();
     println!("Structure:");
@@ -161,8 +312,10 @@ fn cmd_new(path: &Path, format_str: &str) -> Result<()> {
     println!("  {}/index/       - Structure notes (MOCs)", path.display());
     println!("  {}/daily/       - Daily journal", path.display());
     println!("  {}/attachments/ - Images and files", path.display());
+    println!("  {}/raw/         - Source material", path.display());
+    println!("  {}/.skills/     - LLM agent schema", path.display());
     println!();
-    println!("Run 'ztlgr open {}' to open this vault", path.display());
+    println!("Run 'ztlgr open {}' to open this grimoire", path.display());
 
     Ok(())
 }
@@ -209,6 +362,10 @@ fn cmd_import(source: &Path, vault_path: &Path, format: Format, _recursive: bool
     let importer = FileImporter::new(source.to_path_buf(), format, db);
     let result = importer.import_all()?;
 
+    // Log the import activity
+    let activity_log = ActivityLog::new(vault_path);
+    let _ = activity_log.log_import(result.imported, result.failed);
+
     println!("Import complete:");
     println!("  Imported: {}", result.imported);
     println!("  Failed: {}", result.failed);
@@ -234,14 +391,27 @@ fn cmd_sync(vault_path: &Path, format: Format, force: bool) -> Result<()> {
     let db_path = vault.database_path();
     let db = Database::new(&db_path)?;
 
-    let sync = FileSync::new(vault_path.to_path_buf(), format, db);
+    let activity_log = ActivityLog::new(vault_path);
 
     if force {
+        let sync = FileSync::new(vault_path.to_path_buf(), format, db);
         let result = sync.full_sync()?;
+
+        // Log the sync activity
+        let _ = activity_log.log_sync(result.created_files, result.imported_notes, result.synced);
+
+        // Regenerate index after sync
+        let db2 = Database::new(&vault.database_path())?;
+        let total_notes = db2.count_notes()?;
+        let generator = IndexGenerator::new(&db2);
+        generator.write_index(vault_path)?;
+        let _ = activity_log.log_index(total_notes);
+
         println!("Full sync complete:");
         println!("  Files created: {}", result.created_files);
         println!("  Notes imported: {}", result.imported_notes);
         println!("  Notes synced: {}", result.synced);
+        println!("  Index regenerated");
     } else {
         println!("Sync complete (use --force for full sync)");
     }
@@ -285,6 +455,264 @@ fn cmd_search(vault_path: &Path, query: &str, limit: usize, format: Format) -> R
     Ok(())
 }
 
+fn cmd_index(vault_path: &Path, format: Format) -> Result<()> {
+    let vault = Vault::new(vault_path.to_path_buf(), format);
+
+    if !vault.exists() {
+        return Err(ZtlgrError::VaultNotFound(vault_path.display().to_string()));
+    }
+
+    let db_path = vault.database_path();
+    let db = Database::new(&db_path)?;
+
+    let total_notes = db.count_notes()?;
+    let total_links = db.count_links()?;
+
+    let generator = IndexGenerator::new(&db);
+    generator.write_index(vault_path)?;
+
+    // Log the activity
+    let activity_log = ActivityLog::new(vault_path);
+    activity_log.log_index(total_notes)?;
+
+    println!("Index generated:");
+    println!("  Notes indexed: {}", total_notes);
+    println!("  Links: {}", total_links);
+    println!(
+        "  Written to: {}",
+        vault_path.join(".ztlgr").join("index.md").display()
+    );
+
+    Ok(())
+}
+
+async fn cmd_ingest(
+    source_path: &Path,
+    title: Option<&str>,
+    vault_path: &Path,
+    process: bool,
+    config_path: Option<&PathBuf>,
+) -> Result<()> {
+    let vault = Vault::new(vault_path.to_path_buf(), Format::Markdown);
+
+    if !vault.exists() {
+        return Err(ZtlgrError::VaultNotFound(vault_path.display().to_string()));
+    }
+
+    let db_path = vault.database_path();
+    let db = Database::new(&db_path)?;
+
+    let ingester = Ingester::new(vault_path.to_path_buf(), db);
+    let result = ingester.ingest_file(source_path, title)?;
+
+    if result.is_new {
+        println!("Ingested source:");
+        println!("  Title: {}", result.source.title);
+        println!("  File: {}", result.source.file_path);
+        println!("  Hash: {}", &result.source.content_hash[..16]);
+        if let Some(mime) = &result.source.mime_type {
+            println!("  Type: {}", mime);
+        }
+        println!("  Size: {} bytes", result.source.file_size);
+    } else {
+        println!("Source already ingested (duplicate content):");
+        println!("  Existing: {}", result.source.file_path);
+        println!("  Hash: {}", &result.source.content_hash[..16]);
+    }
+
+    // If --process flag is set, run LLM processing
+    if process {
+        let mut progress = ProcessProgress::new();
+        progress.set_phase(crate::progress::ProcessingPhase::ReadingSource);
+
+        let config = load_config(vault_path, config_path)?;
+        let llm_config = &config.llm;
+
+        // Re-open DB since Ingester consumed the first one
+        let db2 = Database::new(&db_path)?;
+
+        progress.set_phase(crate::progress::ProcessingPhase::SendingToLLM);
+
+        let process_result = IngestWorkflow::process(
+            llm_config,
+            vault_path,
+            &db2,
+            &result.source.file_path,
+            &result.source.title,
+        )
+        .await?;
+
+        progress.set_phase(crate::progress::ProcessingPhase::CreatingNote);
+
+        progress.set_phase(crate::progress::ProcessingPhase::UpdatingIndex);
+
+        progress.finish_success(&format!(
+            "Created: {}",
+            process_result.literature_note_title
+        ));
+
+        println!();
+        println!("Literature note created:");
+        println!("  Title: {}", process_result.literature_note_title);
+        println!(
+            "  Path: literature/{}.md",
+            result.source.title.to_lowercase().replace(' ', "-")
+        );
+        println!("  Model: {}", process_result.model);
+        println!("  Tokens: {}", process_result.total_tokens);
+        if process_result.estimated_cost_usd > 0.0 {
+            println!("  Est. cost: ${:.4}", process_result.estimated_cost_usd);
+        } else {
+            println!("  Est. cost: $0.00 (local model)");
+        }
+    }
+
+    Ok(())
+}
+
+async fn cmd_ask(vault_path: &Path, question: &str, config_path: Option<&PathBuf>) -> Result<()> {
+    let vault = Vault::new(vault_path.to_path_buf(), Format::Markdown);
+
+    if !vault.exists() {
+        return Err(ZtlgrError::VaultNotFound(vault_path.display().to_string()));
+    }
+
+    let config = load_config(vault_path, config_path)?;
+    let llm_config = &config.llm;
+
+    let db_path = vault.database_path();
+    let db = Database::new(&db_path)?;
+
+    let result = QueryWorkflow::ask(llm_config, vault_path, &db, question).await?;
+
+    // Print the answer
+    println!("{}", result.answer);
+
+    if !result.consulted_notes.is_empty() {
+        println!();
+        println!("--- Notes consulted ({}) ---", result.consulted_notes.len());
+        for note in &result.consulted_notes {
+            println!("  - [[{}]]", note);
+        }
+    }
+
+    println!();
+    println!(
+        "[{} | {} tokens | ${:.4}]",
+        result.model, result.total_tokens, result.estimated_cost_usd
+    );
+
+    Ok(())
+}
+
+async fn cmd_lint(vault_path: &Path, full: bool, config_path: Option<&PathBuf>) -> Result<()> {
+    let vault = Vault::new(vault_path.to_path_buf(), Format::Markdown);
+
+    if !vault.exists() {
+        return Err(ZtlgrError::VaultNotFound(vault_path.display().to_string()));
+    }
+
+    let db_path = vault.database_path();
+    let db = Database::new(&db_path)?;
+
+    if full {
+        let config = load_config(vault_path, config_path)?;
+        let llm_config = &config.llm;
+
+        let report = LintWorkflow::full_lint(llm_config, vault_path, &db).await?;
+
+        println!("{}", report.to_markdown());
+
+        if let Some(model) = &report.model {
+            println!(
+                "[{} | {} tokens | ${:.4}]",
+                model, report.total_tokens, report.estimated_cost_usd
+            );
+        }
+    } else {
+        let report = LintWorkflow::local_lint(vault_path, &db)?;
+
+        if report.is_clean() {
+            println!("Grimoire is clean! No issues found.");
+        } else {
+            println!("{}", report.to_markdown());
+        }
+    }
+
+    Ok(())
+}
+
+/// Load configuration from the config file or vault-local config.
+fn load_config(vault_path: &Path, config_path: Option<&PathBuf>) -> Result<Config> {
+    if let Some(cfg_path) = config_path {
+        Config::load(cfg_path).map_err(|e| ZtlgrError::Config(e.to_string()))
+    } else {
+        let vault_config_path = vault_path.join(".ztlgr").join("config.toml");
+        if vault_config_path.exists() {
+            Config::load(&vault_config_path).map_err(|e| ZtlgrError::Config(e.to_string()))
+        } else {
+            Ok(Config::default())
+        }
+    }
+}
+
+fn cmd_init_skills(vault_path: &Path) -> Result<()> {
+    let vault = Vault::new(vault_path.to_path_buf(), Format::Markdown);
+
+    if !vault.exists() {
+        return Err(ZtlgrError::VaultNotFound(vault_path.display().to_string()));
+    }
+
+    let skills = Skills::new(vault_path);
+    let vault_name = vault_path
+        .file_name()
+        .and_then(|n| n.to_str())
+        .unwrap_or("grimoire");
+    let generator = SkillsGenerator::new(vault_name);
+    let result = generator.generate(vault_path)?;
+
+    println!(".skills/ initialized:");
+    println!("  Files created: {}", result.files_created);
+    println!("  Files skipped: {}", result.files_skipped);
+
+    let report = skills.validate();
+    if report.is_complete() {
+        println!("  Status: complete ({} files)", report.present.len());
+    } else {
+        println!(
+            "  Status: {} present, {} missing",
+            report.present.len(),
+            report.missing.len()
+        );
+    }
+
+    println!();
+    println!("The .skills/ directory provides LLM agents with:");
+    println!("  - Wiki conventions and formatting rules");
+    println!("  - Workflows: ingest, query, lint, maintain");
+    println!("  - Templates: source-summary, entity-page, comparison");
+    println!("  - Context: domain description, research priorities");
+    println!();
+    println!("Customize these files to match your grimoire's domain.");
+
+    Ok(())
+}
+
+fn cmd_mcp(vault_path: &Path, format: Format) -> Result<()> {
+    let vault = Vault::new(vault_path.to_path_buf(), format);
+
+    if !vault.exists() {
+        return Err(ZtlgrError::VaultNotFound(vault_path.display().to_string()));
+    }
+
+    let config = McpServerConfig {
+        vault_path: vault_path.to_path_buf(),
+        format,
+    };
+
+    run_server(config)
+}
+
 async fn run_default_tui(cli: &Cli) -> Result<()> {
     if let Some(vault_path) = &cli.vault {
         let format = parse_format(&cli.format);
@@ -323,7 +751,7 @@ fn resolve_vault_path(
 ) -> Result<PathBuf> {
     let raw_path = cmd_path.or(global_path).cloned().ok_or_else(|| {
         ZtlgrError::VaultNotFound(
-            "no vault path specified. Use --vault or provide path to command".to_string(),
+            "no grimoire path specified. Use --vault or provide path to command".to_string(),
         )
     })?;
 
@@ -389,7 +817,7 @@ mod tests {
         let temp_dir = TempDir::new().unwrap();
         let vault_path = temp_dir.path().join("my_vault");
 
-        cmd_new(&vault_path, "markdown").unwrap();
+        cmd_new(&vault_path, "markdown", true, true).unwrap();
 
         assert!(vault_path.exists());
         assert!(vault_path.join(".ztlgr").exists());
@@ -409,7 +837,7 @@ mod tests {
         let temp_dir = TempDir::new().unwrap();
         let vault_path = temp_dir.path().join("org_vault");
 
-        cmd_new(&vault_path, "org").unwrap();
+        cmd_new(&vault_path, "org", true, true).unwrap();
 
         assert!(vault_path.exists());
         assert!(vault_path.join(".ztlgr").exists());
@@ -420,8 +848,8 @@ mod tests {
         let temp_dir = TempDir::new().unwrap();
         let vault_path = temp_dir.path().join("existing_vault");
 
-        cmd_new(&vault_path, "markdown").unwrap();
-        let result = cmd_new(&vault_path, "markdown");
+        cmd_new(&vault_path, "markdown", true, true).unwrap();
+        let result = cmd_new(&vault_path, "markdown", true, true);
 
         assert!(result.is_err());
     }
@@ -431,7 +859,7 @@ mod tests {
         let temp_dir = TempDir::new().unwrap();
         let vault_path = temp_dir.path().join("search_vault");
 
-        cmd_new(&vault_path, "markdown").unwrap();
+        cmd_new(&vault_path, "markdown", true, true).unwrap();
 
         let result = cmd_search(&vault_path, "nonexistent query", 10, Format::Markdown);
         assert!(result.is_ok());
@@ -442,7 +870,7 @@ mod tests {
         let temp_dir = TempDir::new().unwrap();
         let vault_path = temp_dir.path().join("sync_vault");
 
-        cmd_new(&vault_path, "markdown").unwrap();
+        cmd_new(&vault_path, "markdown", true, true).unwrap();
 
         let result = cmd_sync(&vault_path, Format::Markdown, false);
         assert!(result.is_ok());
@@ -453,10 +881,21 @@ mod tests {
         let temp_dir = TempDir::new().unwrap();
         let vault_path = temp_dir.path().join("sync_force_vault");
 
-        cmd_new(&vault_path, "markdown").unwrap();
+        cmd_new(&vault_path, "markdown", true, true).unwrap();
 
         let result = cmd_sync(&vault_path, Format::Markdown, true);
         assert!(result.is_ok());
+
+        // Verify index.md was generated during force sync
+        let index_path = vault_path.join(".ztlgr").join("index.md");
+        assert!(index_path.exists());
+
+        // Verify log.md was created with sync and index entries
+        let log_path = vault_path.join(".ztlgr").join("log.md");
+        assert!(log_path.exists());
+        let log_content = std::fs::read_to_string(&log_path).unwrap();
+        assert!(log_content.contains("sync |"));
+        assert!(log_content.contains("index |"));
     }
 
     #[test]
@@ -465,7 +904,7 @@ mod tests {
         let vault_path = temp_dir.path().join("import_vault");
         let source_path = temp_dir.path().join("source");
 
-        cmd_new(&vault_path, "markdown").unwrap();
+        cmd_new(&vault_path, "markdown", true, true).unwrap();
         std::fs::create_dir_all(&source_path).unwrap();
 
         let result = cmd_import(&source_path, &vault_path, Format::Markdown, true);
@@ -510,6 +949,425 @@ mod tests {
         std::fs::create_dir_all(&source_path).unwrap();
 
         let result = cmd_import(&source_path, &vault_path, Format::Markdown, true);
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_cmd_index_generates_index_file() {
+        let temp_dir = TempDir::new().unwrap();
+        let vault_path = temp_dir.path().join("index_vault");
+
+        cmd_new(&vault_path, "markdown", true, true).unwrap();
+
+        let result = cmd_index(&vault_path, Format::Markdown);
+        assert!(result.is_ok());
+
+        // Verify index.md was created
+        let index_path = vault_path.join(".ztlgr").join("index.md");
+        assert!(index_path.exists());
+
+        let content = std::fs::read_to_string(&index_path).unwrap();
+        assert!(content.contains("# Grimoire Index"));
+    }
+
+    #[test]
+    fn test_cmd_index_nonexistent_vault() {
+        let temp_dir = TempDir::new().unwrap();
+        let vault_path = temp_dir.path().join("nonexistent_index");
+
+        let result = cmd_index(&vault_path, Format::Markdown);
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_cmd_index_creates_activity_log() {
+        let temp_dir = TempDir::new().unwrap();
+        let vault_path = temp_dir.path().join("log_vault");
+
+        cmd_new(&vault_path, "markdown", true, true).unwrap();
+        cmd_index(&vault_path, Format::Markdown).unwrap();
+
+        // Verify log.md was created
+        let log_path = vault_path.join(".ztlgr").join("log.md");
+        assert!(log_path.exists());
+
+        let content = std::fs::read_to_string(&log_path).unwrap();
+        assert!(content.contains("index | Index regenerated"));
+    }
+
+    #[test]
+    fn test_cmd_new_with_git_init() {
+        if !Vault::is_git_available() {
+            return;
+        }
+
+        let temp_dir = TempDir::new().unwrap();
+        let vault_path = temp_dir.path().join("git_vault");
+
+        // no_git = false => git init should run
+        cmd_new(&vault_path, "markdown", false, true).unwrap();
+
+        assert!(vault_path.join(".git").exists());
+    }
+
+    #[test]
+    fn test_cmd_new_with_no_git() {
+        let temp_dir = TempDir::new().unwrap();
+        let vault_path = temp_dir.path().join("nogit_vault");
+
+        // no_git = true => no .git directory
+        cmd_new(&vault_path, "markdown", true, true).unwrap();
+
+        assert!(!vault_path.join(".git").exists());
+    }
+
+    // =====================================================================
+    // Ingest command tests
+    // =====================================================================
+
+    #[test]
+    fn test_cmd_ingest_success() {
+        let temp_dir = TempDir::new().unwrap();
+        let vault_path = temp_dir.path().join("ingest_vault");
+        cmd_new(&vault_path, "markdown", true, true).unwrap();
+
+        let source_file = temp_dir.path().join("article.md");
+        std::fs::write(&source_file, "# Article\n\nContent here").unwrap();
+
+        let rt = tokio::runtime::Runtime::new().unwrap();
+        let result = rt.block_on(cmd_ingest(&source_file, None, &vault_path, false, None));
+        assert!(result.is_ok());
+
+        // Verify file was copied to raw/
+        assert!(vault_path.join("raw").exists());
+        let raw_files: Vec<_> = std::fs::read_dir(vault_path.join("raw")).unwrap().collect();
+        assert_eq!(raw_files.len(), 1);
+    }
+
+    #[test]
+    fn test_cmd_ingest_with_title() {
+        let temp_dir = TempDir::new().unwrap();
+        let vault_path = temp_dir.path().join("ingest_title");
+        cmd_new(&vault_path, "markdown", true, true).unwrap();
+
+        let source_file = temp_dir.path().join("a.md");
+        std::fs::write(&source_file, "content").unwrap();
+
+        let rt = tokio::runtime::Runtime::new().unwrap();
+        let result = rt.block_on(cmd_ingest(
+            &source_file,
+            Some("Custom Title"),
+            &vault_path,
+            false,
+            None,
+        ));
+        assert!(result.is_ok());
+    }
+
+    #[test]
+    fn test_cmd_ingest_duplicate() {
+        let temp_dir = TempDir::new().unwrap();
+        let vault_path = temp_dir.path().join("ingest_dup");
+        cmd_new(&vault_path, "markdown", true, true).unwrap();
+
+        let file1 = temp_dir.path().join("first.md");
+        std::fs::write(&file1, "same content").unwrap();
+
+        let file2 = temp_dir.path().join("second.md");
+        std::fs::write(&file2, "same content").unwrap();
+
+        let rt = tokio::runtime::Runtime::new().unwrap();
+        rt.block_on(cmd_ingest(&file1, None, &vault_path, false, None))
+            .unwrap();
+        let result = rt.block_on(cmd_ingest(&file2, None, &vault_path, false, None));
+        assert!(result.is_ok()); // Should succeed but report duplicate
+    }
+
+    #[test]
+    fn test_cmd_ingest_nonexistent_vault() {
+        let temp_dir = TempDir::new().unwrap();
+        let vault_path = temp_dir.path().join("nonexistent_ingest");
+        let source_file = temp_dir.path().join("file.md");
+        std::fs::write(&source_file, "content").unwrap();
+
+        let rt = tokio::runtime::Runtime::new().unwrap();
+        let result = rt.block_on(cmd_ingest(&source_file, None, &vault_path, false, None));
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_cmd_ingest_nonexistent_file() {
+        let temp_dir = TempDir::new().unwrap();
+        let vault_path = temp_dir.path().join("ingest_nofile");
+        cmd_new(&vault_path, "markdown", true, true).unwrap();
+
+        let rt = tokio::runtime::Runtime::new().unwrap();
+        let result = rt.block_on(cmd_ingest(
+            Path::new("/nonexistent/file.md"),
+            None,
+            &vault_path,
+            false,
+            None,
+        ));
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_cmd_new_creates_raw_dir() {
+        let temp_dir = TempDir::new().unwrap();
+        let vault_path = temp_dir.path().join("raw_dir_vault");
+
+        cmd_new(&vault_path, "markdown", true, true).unwrap();
+
+        assert!(vault_path.join("raw").exists());
+    }
+
+    // =====================================================================
+    // .skills/ integration tests
+    // =====================================================================
+
+    #[test]
+    fn test_cmd_new_creates_skills_by_default() {
+        let temp_dir = TempDir::new().unwrap();
+        let vault_path = temp_dir.path().join("skills_vault");
+
+        // no_skills = false => .skills/ should be created
+        cmd_new(&vault_path, "markdown", true, false).unwrap();
+
+        assert!(vault_path.join(".skills").exists());
+        assert!(vault_path.join(".skills").join("README.md").exists());
+        assert!(vault_path.join(".skills").join("conventions.md").exists());
+        assert!(vault_path
+            .join(".skills")
+            .join("workflows")
+            .join("ingest.md")
+            .exists());
+        assert!(vault_path
+            .join(".skills")
+            .join("templates")
+            .join("source-summary.md")
+            .exists());
+        assert!(vault_path
+            .join(".skills")
+            .join("context")
+            .join("domain.md")
+            .exists());
+    }
+
+    #[test]
+    fn test_cmd_new_skips_skills_with_flag() {
+        let temp_dir = TempDir::new().unwrap();
+        let vault_path = temp_dir.path().join("no_skills_vault");
+
+        // no_skills = true => .skills/ should NOT be created
+        cmd_new(&vault_path, "markdown", true, true).unwrap();
+
+        assert!(!vault_path.join(".skills").exists());
+    }
+
+    #[test]
+    fn test_cmd_new_skills_contain_vault_name() {
+        let temp_dir = TempDir::new().unwrap();
+        let vault_path = temp_dir.path().join("named-grimoire");
+
+        cmd_new(&vault_path, "markdown", true, false).unwrap();
+
+        let readme = std::fs::read_to_string(vault_path.join(".skills").join("README.md")).unwrap();
+        assert!(readme.contains("named-grimoire"));
+    }
+
+    #[test]
+    fn test_cmd_init_skills_success() {
+        let temp_dir = TempDir::new().unwrap();
+        let vault_path = temp_dir.path().join("init_skills_vault");
+
+        // Create vault without skills
+        cmd_new(&vault_path, "markdown", true, true).unwrap();
+        assert!(!vault_path.join(".skills").exists());
+
+        // Now run init-skills
+        let result = cmd_init_skills(&vault_path);
+        assert!(result.is_ok());
+        assert!(vault_path.join(".skills").exists());
+        assert!(vault_path.join(".skills").join("README.md").exists());
+    }
+
+    #[test]
+    fn test_cmd_init_skills_nonexistent_vault() {
+        let temp_dir = TempDir::new().unwrap();
+        let vault_path = temp_dir.path().join("nonexistent_skills");
+
+        let result = cmd_init_skills(&vault_path);
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_cmd_init_skills_idempotent() {
+        let temp_dir = TempDir::new().unwrap();
+        let vault_path = temp_dir.path().join("idempotent_skills");
+
+        cmd_new(&vault_path, "markdown", true, false).unwrap();
+
+        // Custom-modify one file
+        std::fs::write(
+            vault_path.join(".skills").join("README.md"),
+            "# Custom README",
+        )
+        .unwrap();
+
+        // Run init-skills again -- should not overwrite custom README
+        cmd_init_skills(&vault_path).unwrap();
+
+        let readme = std::fs::read_to_string(vault_path.join(".skills").join("README.md")).unwrap();
+        assert_eq!(readme, "# Custom README");
+    }
+
+    #[test]
+    fn test_cmd_init_skills_fills_missing_files() {
+        let temp_dir = TempDir::new().unwrap();
+        let vault_path = temp_dir.path().join("fill_skills");
+
+        cmd_new(&vault_path, "markdown", true, false).unwrap();
+
+        // Delete some files
+        std::fs::remove_file(vault_path.join(".skills").join("workflows").join("lint.md")).unwrap();
+        std::fs::remove_file(
+            vault_path
+                .join(".skills")
+                .join("context")
+                .join("priorities.md"),
+        )
+        .unwrap();
+
+        // Run init-skills to fill them back
+        cmd_init_skills(&vault_path).unwrap();
+
+        assert!(vault_path
+            .join(".skills")
+            .join("workflows")
+            .join("lint.md")
+            .exists());
+        assert!(vault_path
+            .join(".skills")
+            .join("context")
+            .join("priorities.md")
+            .exists());
+    }
+
+    // =====================================================================
+    // load_config tests
+    // =====================================================================
+
+    #[test]
+    fn test_load_config_default_when_no_config_file() {
+        let temp_dir = TempDir::new().unwrap();
+        let vault_path = temp_dir.path().join("noconf_vault");
+        cmd_new(&vault_path, "markdown", true, true).unwrap();
+
+        let config = load_config(&vault_path, None).unwrap();
+        // Default config: LLM disabled
+        assert!(!config.llm.enabled);
+        assert_eq!(config.llm.provider, "ollama");
+    }
+
+    #[test]
+    fn test_load_config_from_vault_config() {
+        let temp_dir = TempDir::new().unwrap();
+        let vault_path = temp_dir.path().join("conf_vault");
+        cmd_new(&vault_path, "markdown", true, true).unwrap();
+
+        // Write a config file inside the vault
+        let config_dir = vault_path.join(".ztlgr");
+        std::fs::write(
+            config_dir.join("config.toml"),
+            "[llm]\nenabled = true\nprovider = \"openai\"\nmodel = \"gpt-4o\"\n",
+        )
+        .unwrap();
+
+        let config = load_config(&vault_path, None).unwrap();
+        assert!(config.llm.enabled);
+        assert_eq!(config.llm.provider, "openai");
+    }
+
+    #[test]
+    fn test_load_config_explicit_path_takes_precedence() {
+        let temp_dir = TempDir::new().unwrap();
+        let vault_path = temp_dir.path().join("explicit_vault");
+        cmd_new(&vault_path, "markdown", true, true).unwrap();
+
+        // Write a separate config file
+        let cfg_path = temp_dir.path().join("custom.toml");
+        std::fs::write(
+            &cfg_path,
+            "[llm]\nenabled = true\nprovider = \"anthropic\"\nmodel = \"claude-sonnet-4-20250514\"\n",
+        )
+        .unwrap();
+
+        let config = load_config(&vault_path, Some(&cfg_path)).unwrap();
+        assert!(config.llm.enabled);
+        assert_eq!(config.llm.provider, "anthropic");
+    }
+
+    // =====================================================================
+    // Ask command tests
+    // =====================================================================
+
+    #[test]
+    fn test_cmd_ask_nonexistent_vault() {
+        let temp_dir = TempDir::new().unwrap();
+        let vault_path = temp_dir.path().join("nonexistent_ask");
+
+        let rt = tokio::runtime::Runtime::new().unwrap();
+        let result = rt.block_on(cmd_ask(&vault_path, "What is zettelkasten?", None));
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_cmd_ask_llm_disabled_by_default() {
+        let temp_dir = TempDir::new().unwrap();
+        let vault_path = temp_dir.path().join("ask_disabled");
+        cmd_new(&vault_path, "markdown", true, true).unwrap();
+
+        let rt = tokio::runtime::Runtime::new().unwrap();
+        let result = rt.block_on(cmd_ask(&vault_path, "test question", None));
+        // Should fail because LLM is disabled by default
+        assert!(result.is_err());
+    }
+
+    // =====================================================================
+    // Lint command tests
+    // =====================================================================
+
+    #[test]
+    fn test_cmd_lint_local_empty_vault() {
+        let temp_dir = TempDir::new().unwrap();
+        let vault_path = temp_dir.path().join("lint_vault");
+        cmd_new(&vault_path, "markdown", true, true).unwrap();
+
+        let rt = tokio::runtime::Runtime::new().unwrap();
+        let result = rt.block_on(cmd_lint(&vault_path, false, None));
+        assert!(result.is_ok());
+    }
+
+    #[test]
+    fn test_cmd_lint_nonexistent_vault() {
+        let temp_dir = TempDir::new().unwrap();
+        let vault_path = temp_dir.path().join("nonexistent_lint");
+
+        let rt = tokio::runtime::Runtime::new().unwrap();
+        let result = rt.block_on(cmd_lint(&vault_path, false, None));
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_cmd_lint_full_llm_disabled() {
+        let temp_dir = TempDir::new().unwrap();
+        let vault_path = temp_dir.path().join("lint_full_disabled");
+        cmd_new(&vault_path, "markdown", true, true).unwrap();
+
+        let rt = tokio::runtime::Runtime::new().unwrap();
+        let result = rt.block_on(cmd_lint(&vault_path, true, None));
+        // Should fail because LLM is disabled by default
         assert!(result.is_err());
     }
 }

@@ -1,0 +1,1 @@
+- [[${NOTE_TITLE}]] -- ${ONE_LINE_SUMMARY} (${NOTE_TYPE}, ${TAGS})

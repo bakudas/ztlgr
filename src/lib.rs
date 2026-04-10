@@ -4,8 +4,13 @@ pub mod db;
 pub mod error;
 pub mod graph;
 pub mod link;
+pub mod llm;
+pub mod mcp;
 pub mod note;
+pub mod progress;
 pub mod setup;
+pub mod skills;
+pub mod source;
 pub mod storage;
 pub mod ui;
 
@@ -14,7 +19,14 @@ pub use config::Config;
 pub use db::Database;
 pub use error::{Result, ZtlgrError};
 pub use link::{LinkError, LinkFormat, LinkInfo, LinkTarget};
+pub use llm::{ContextBuilder, LlmProvider, LlmRequest, LlmResponse, ProviderKind};
+pub use llm::{
+    IngestProcessResult, IngestWorkflow, LintReport, LintWorkflow, QueryResult, QueryWorkflow,
+};
+pub use llm::{WorkflowEngine, WorkflowResult};
 pub use note::{Note, NoteId, NoteType, ZettelId};
+pub use skills::Skills;
+pub use source::{Source, SourceId};
 pub use storage::{Format, MarkdownStorage, OrgStorage, Storage, Vault};
 
 // Version

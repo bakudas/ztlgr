@@ -2,6 +2,21 @@
 
 This document provides instructions for agentic coding systems working on the ztlgr Zettelkasten TUI application.
 
+## Current Direction: LLM Wiki Integration
+
+ztlgr is evolving from a standalone Zettelkasten TUI into an **LLM-maintained personal
+knowledge base** following the "LLM Wiki" pattern. See `docs/ROADMAP-LLM-WIKI.md` for
+the full implementation plan.
+
+Key concepts:
+- **`.skills/`** directory in each vault provides schema + workflows for LLM agents
+- **`raw/`** directory holds immutable source material
+- **`index.md`** is an auto-generated catalog of all wiki pages
+- **`log.md`** is a chronological activity log
+- The LLM does the grunt work (summarizing, cross-referencing, filing); humans curate and direct
+
+Active branch: `feat/llm-wiki-integration`
+
 ## 📋 STATUS TRACKING PROTOCOL
 
 **CRITICAL: After each successful commit, you MUST update docs/STATUS.md with:**
