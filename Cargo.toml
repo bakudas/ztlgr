@@ -69,7 +69,7 @@ crossbeam-channel = "0.5"
 # File system
 walkdir = "2.4"
 sanitize-filename = "0.5"
-unicode-width = "0.1"
+unicode-width = "0.2"
 
 # Document conversion for LLM ingestion
 anytomd = "1.2"           # DOCX, PPTX, XLSX, HTML, CSV, JSON, XML -> Markdown
