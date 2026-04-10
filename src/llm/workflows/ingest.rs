@@ -115,18 +115,16 @@ impl IngestWorkflow {
             .await?;
 
         // Post-process the generated content (fix formatting issues)
+        // Note: validate_and_fix ensures frontmatter is present
         let processed_content = LiteratureNoteProcessor::validate_and_fix(
             &result.content,
             source_title,
             source_relative_path,
         )?;
 
-        // Create the literature note
+        // Create the literature note - content already has frontmatter from post-processor
         let note_title = format!("Literature: {}", source_title);
-        let note_content = format!(
-            "---\ntype: literature\nsource: {}\n---\n\n{}",
-            source_relative_path, processed_content
-        );
+        let note_content = processed_content;
 
         let note =
             Note::new(note_title.clone(), note_content.clone()).with_type(NoteType::Literature {

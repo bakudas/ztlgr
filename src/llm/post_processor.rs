@@ -25,20 +25,46 @@ impl LiteratureNoteProcessor {
     ) -> Result<String> {
         let mut fixed = content.to_string();
 
-        // 1. Ensure frontmatter exists
-        if !fixed.starts_with("---\n") {
+        // 1. Ensure frontmatter exists and is correct
+        // Some LLMs may generate frontmatter with incorrect source paths
+        if fixed.starts_with("---\n") {
+            // Extract existing frontmatter
+            if let Some(end_pos) = fixed.find("\n---\n") {
+                let frontmatter = &fixed[..end_pos + 4]; // includes closing ---
+                let body = &fixed[end_pos + 5..]; // after closing ---
+
+                // Check if source field exists and is correct
+                let source_field = format!("source: {}", source_path);
+                if !frontmatter.contains("source:") {
+                    // Add source field
+                    fixed = format!(
+                        "---\ntype: literature\n{}\n---\n{}",
+                        source_field,
+                        body.trim_start()
+                    );
+                } else if !frontmatter.contains(source_field.as_str()) {
+                    // Replace incorrect source
+                    // Find and replace the source line
+                    let lines: Vec<&str> = frontmatter.lines().collect();
+                    let mut new_lines = Vec::new();
+                    for line in lines {
+                        if line.starts_with("source:") {
+                            new_lines.push(source_field.as_str());
+                        } else {
+                            new_lines.push(line);
+                        }
+                    }
+                    fixed = format!("{}\n---\n{}", new_lines.join("\n"), body.trim_start());
+                }
+                // else source is correct, keep as-is
+            }
+        } else {
+            // No frontmatter, add it
             fixed = format!(
                 "---\ntype: literature\nsource: {}\n---\n\n{}",
-                source_path, fixed
+                source_path,
+                fixed.trim()
             );
-        } else {
-            // Verify frontmatter has required fields
-            if !fixed.contains("type: literature") {
-                fixed = fixed.replacen("type:", "type: literature\n  # ", 1);
-            }
-            if !fixed.contains("source:") {
-                fixed = fixed.replacen("---\n", &format!("---\nsource: {}\n", source_path), 1);
-            }
         }
 
         // 2. Ensure title exists
@@ -52,8 +78,15 @@ impl LiteratureNoteProcessor {
         // 4. Remove excessive whitespace
         fixed = Self::normalize_whitespace(&fixed);
 
-        // 5. Cap length for very verbose models
-        fixed = Self::cap_length(&fixed, 1500); // ~400 words
+        // 5. Cap length for very verbose models (but preserve frontmatter)
+        if let Some(fm_end) = fixed.find("\n---\n") {
+            let frontmatter = &fixed[..fm_end + 5];
+            let body = &fixed[fm_end + 5..];
+            let capped_body = Self::cap_length(body, 2000); // ~500 words for body
+            fixed = format!("{}{}", frontmatter, capped_body);
+        } else {
+            fixed = Self::cap_length(&fixed, 2000);
+        }
 
         Ok(fixed)
     }
