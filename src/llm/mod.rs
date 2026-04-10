@@ -1,7 +1,10 @@
 pub mod anthropic;
 pub mod context;
+pub mod gemini;
+pub mod nvidia;
 pub mod ollama;
 pub mod openai;
+pub mod openrouter;
 pub mod post_processor;
 pub mod provider;
 pub mod usage;
@@ -26,6 +29,9 @@ pub enum ProviderKind {
     Ollama,
     OpenAi,
     Anthropic,
+    Gemini,
+    OpenRouter,
+    Nvidia,
 }
 
 impl std::str::FromStr for ProviderKind {
@@ -36,8 +42,11 @@ impl std::str::FromStr for ProviderKind {
             "ollama" => Ok(ProviderKind::Ollama),
             "openai" => Ok(ProviderKind::OpenAi),
             "anthropic" => Ok(ProviderKind::Anthropic),
+            "gemini" => Ok(ProviderKind::Gemini),
+            "openrouter" => Ok(ProviderKind::OpenRouter),
+            "nvidia" => Ok(ProviderKind::Nvidia),
             other => Err(ZtlgrError::Llm(format!(
-                "Unknown LLM provider: '{}'. Supported: ollama, openai, anthropic",
+                "Unknown LLM provider: '{}'. Supported: ollama, openai, anthropic, gemini, openrouter, nvidia",
                 other
             ))),
         }
@@ -51,6 +60,9 @@ impl ProviderKind {
             ProviderKind::Ollama => "ollama",
             ProviderKind::OpenAi => "openai",
             ProviderKind::Anthropic => "anthropic",
+            ProviderKind::Gemini => "gemini",
+            ProviderKind::OpenRouter => "openrouter",
+            ProviderKind::Nvidia => "nvidia",
         }
     }
 }
@@ -82,6 +94,9 @@ pub fn create_provider(config: &LlmConfig) -> Result<Box<dyn LlmProvider>> {
         ProviderKind::Ollama => Ok(Box::new(ollama::OllamaProvider::new(config))),
         ProviderKind::OpenAi => Ok(Box::new(openai::OpenAiProvider::new(config)?)),
         ProviderKind::Anthropic => Ok(Box::new(anthropic::AnthropicProvider::new(config)?)),
+        ProviderKind::Gemini => Ok(Box::new(gemini::GeminiProvider::new(config)?)),
+        ProviderKind::OpenRouter => Ok(Box::new(openrouter::OpenRouterProvider::new(config)?)),
+        ProviderKind::Nvidia => Ok(Box::new(nvidia::NvidiaProvider::new(config)?)),
     }
 }
 
@@ -133,11 +148,11 @@ mod tests {
 
     #[test]
     fn test_provider_kind_from_str_unknown() {
-        let result = "gemini".parse::<ProviderKind>();
+        let result = "unknown_provider".parse::<ProviderKind>();
         assert!(result.is_err());
         let err = result.unwrap_err().to_string();
         assert!(err.contains("Unknown LLM provider"));
-        assert!(err.contains("gemini"));
+        assert!(err.contains("unknown_provider"));
     }
 
     #[test]
@@ -145,6 +160,9 @@ mod tests {
         assert_eq!(ProviderKind::Ollama.as_str(), "ollama");
         assert_eq!(ProviderKind::OpenAi.as_str(), "openai");
         assert_eq!(ProviderKind::Anthropic.as_str(), "anthropic");
+        assert_eq!(ProviderKind::Gemini.as_str(), "gemini");
+        assert_eq!(ProviderKind::OpenRouter.as_str(), "openrouter");
+        assert_eq!(ProviderKind::Nvidia.as_str(), "nvidia");
     }
 
     #[test]
@@ -152,6 +170,9 @@ mod tests {
         assert_eq!(ProviderKind::Ollama.to_string(), "ollama");
         assert_eq!(ProviderKind::OpenAi.to_string(), "openai");
         assert_eq!(ProviderKind::Anthropic.to_string(), "anthropic");
+        assert_eq!(ProviderKind::Gemini.to_string(), "gemini");
+        assert_eq!(ProviderKind::OpenRouter.to_string(), "openrouter");
+        assert_eq!(ProviderKind::Nvidia.to_string(), "nvidia");
     }
 
     #[test]

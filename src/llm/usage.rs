@@ -182,6 +182,25 @@ fn model_pricing(provider: &str, model: &str) -> (f64, f64) {
             _ => (0.0, 0.0),
         },
 
+        "gemini" => match model {
+            m if m.starts_with("gemini-2") => (0.0, 0.0), // Often free tier
+            m if m.contains("1.5-pro") => (1.25, 5.00),
+            m if m.contains("1.5-flash") => (0.075, 0.30),
+            _ => (0.0, 0.0),
+        },
+
+        "openrouter" => {
+            // OpenRouter pricing varies by model - aggregate pricing
+            // Users should check https://openrouter.ai/models for current rates
+            (0.0, 0.0)
+        }
+
+        "nvidia" => {
+            // NVIDIA often offers free tier for developers
+            // https://build.nvidia.com/explore/discover
+            (0.0, 0.0)
+        }
+
         _ => (0.0, 0.0),
     }
 }
