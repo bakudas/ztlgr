@@ -56,7 +56,7 @@ tracing-appender = "0.2"
 
 # Configuration
 directories = "5.0"
-toml = "0.8"
+toml = "1.1"
 
 # Async utilities
 parking_lot = "0.12"
