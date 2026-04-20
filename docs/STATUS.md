@@ -1,7 +1,7 @@
 # Status do Projeto ztlgr
 
 **Data Atualização:** 20 de Abril de 2026  
-**Versão:** 0.6.0 (LLM Wiki Integration Complete)
+**Versão:** 0.6.1 (Search Stability Patch)
 **Status Geral:** 🟢 ACTIVE DEVELOPMENT
 **Testes:** 905 passing (100% success rate)
 
@@ -158,7 +158,30 @@ Multi-format document conversion for the LLM Wiki workflow:
 
 ---
 
-## 🚀 LATEST RELEASE: v0.6.0
+## 🚀 LATEST RELEASE: v0.6.1
+
+**Release Date:** April 20, 2026  
+**Release Tag:** v0.6.1
+
+**What's New in v0.6.1:**
+
+### 🛠️ Search Stability & UX Patch
+
+- Fixed crash risk in TUI search excerpts with UTF-8 safe truncation
+- Search mode now renders a dedicated overlay with input + visible results
+- `Enter` in search mode now opens selected result and returns to normal mode
+- Added FTS fallback for special/prefixed queries (e.g. `?mapr`)
+- Improved long result list behavior by keeping selection within visible viewport
+
+### 🔧 Technical Changes
+
+- Bumped version from 0.6.0 to 0.6.1
+- 905 tests passing
+- Zero clippy warnings
+
+---
+
+## 🚀 PREVIOUS RELEASE: v0.6.0
 
 **Release Date:** April 10, 2026  
 **Release Tag:** v0.6.0
@@ -542,7 +565,7 @@ Comprehensive help system accessible via `?` or `:help`:
 
 ## 🟠 PRÓXIMOS PASSOS
 
-### Post-Release (v0.6.0)
+### Post-Release (v0.6.1)
 - [ ] Monitor GitHub Actions build
 - [ ] Monitor crates.io publish
 - [ ] Update README with LLM features
@@ -571,7 +594,7 @@ Comprehensive help system accessible via `?` or `:help`:
 
 ---
 
-**Status**: 🟢 v0.6.0 Released - LLM Wiki Integration Complete  
+**Status**: 🟢 v0.6.1 Released - Search Stability Patch  
 **Próximo Release**: v0.7.0 (Future Enhancements)
 
 ---

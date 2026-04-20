@@ -7,6 +7,25 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.6.1] - 2026-04-20
+
+### Fixed
+
+- Hardened TUI search flow end-to-end (`/` -> results -> open note on `Enter`)
+- Added search overlay rendering in `Mode::Search` with proper result list visibility
+- Fixed UTF-8 excerpt truncation panic during search result formatting
+- Added robust FTS fallback for special-character queries (e.g. `?mapr` -> prefix fallback)
+
+### Changed
+
+- Search results list now keeps selection in view for long result sets (viewport windowing)
+- Search result opening now syncs opened notes into in-memory note list to avoid navigation inconsistencies
+
+### Technical
+
+- Test count: 905 passing
+- Validation: `cargo fmt --all`, `cargo test --lib`, `cargo clippy --all-features -- -D warnings`
+
 ## [0.6.0] - 2026-04-10
 
 ### Added
