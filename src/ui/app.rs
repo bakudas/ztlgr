@@ -8,7 +8,8 @@ use crossterm::{
 };
 use ratatui::{
     backend::CrosstermBackend,
-    layout::{Constraint, Direction, Layout},
+    layout::{Constraint, Direction, Layout, Rect},
+    widgets::Clear,
     Terminal,
 };
 use std::sync::Arc;
@@ -318,6 +319,10 @@ impl App {
 
         self.status_bar
             .draw(f, status_chunks[1], theme_ref, self.mode);
+
+        if self.mode == Mode::Search && self.current_modal.is_none() {
+            self.draw_search_overlay(f, theme_ref);
+        }
 
         // Draw modal on top if present
         if let Some(modal) = &self.current_modal {
@@ -678,8 +683,9 @@ impl App {
                 self.search_state.clear();
             }
             KeyCode::Enter => {
-                self.perform_search();
-                // Stay in search mode to show results
+                if !self.open_selected_search_result() {
+                    self.perform_search();
+                }
             }
             KeyCode::Up => {
                 self.search_state.results.select_prev();
@@ -1417,6 +1423,18 @@ impl App {
         }
     }
 
+    fn upsert_note_in_list(&mut self, note: Note) {
+        if let Some(existing) = self
+            .notes
+            .iter_mut()
+            .find(|n| n.id.as_str() == note.id.as_str())
+        {
+            *existing = note;
+        } else {
+            self.notes.insert(0, note);
+        }
+    }
+
     fn save_current_note(&mut self) {
         if let Some(selected) = &self.selected_note {
             if let Ok(_id) = crate::note::NoteId::parse(selected) {
@@ -1496,6 +1514,86 @@ impl App {
         self.status_bar.set_message(":rename <new_title>");
     }
 
+    fn open_selected_search_result(&mut self) -> bool {
+        let Some(selected_result) = self.search_state.results.selected_result().cloned() else {
+            return false;
+        };
+
+        if self.selected_note.is_some() {
+            self.save_current_note();
+        }
+
+        let Ok(note_id) = crate::note::NoteId::parse(&selected_result.note_id) else {
+            self.status_bar
+                .set_message("Search result has an invalid note id");
+            return false;
+        };
+
+        match self.db.get_note(&note_id) {
+            Ok(Some(note)) => {
+                self.upsert_note_in_list(note);
+                self.selected_note = Some(selected_result.note_id);
+                self.load_note();
+                self.mode = Mode::Normal;
+                self.search_state.clear();
+                self.status_bar
+                    .set_message(&format!("Opened note: {}", selected_result.title));
+                true
+            }
+            Ok(None) => {
+                self.status_bar
+                    .set_message("Search result note no longer exists");
+                false
+            }
+            Err(e) => {
+                self.status_bar
+                    .set_message(&format!("Failed to open search result: {}", e));
+                false
+            }
+        }
+    }
+
+    fn draw_search_overlay(&self, f: &mut ratatui::Frame, theme: &dyn crate::config::Theme) {
+        let area = f.size();
+
+        let max_width = area.width.saturating_sub(4);
+        let max_height = area.height.saturating_sub(4);
+
+        let desired_width = 90;
+        let desired_height = 20;
+
+        let min_width = 30;
+        let min_height = 6;
+
+        let modal_width = if max_width >= min_width {
+            desired_width.min(max_width)
+        } else {
+            max_width.max(1)
+        };
+        let modal_height = if max_height >= min_height {
+            desired_height.min(max_height)
+        } else {
+            max_height.max(1)
+        };
+
+        let modal_area = Rect {
+            x: area.width.saturating_sub(modal_width) / 2,
+            y: area.height.saturating_sub(modal_height) / 2,
+            width: modal_width,
+            height: modal_height,
+        };
+
+        f.render_widget(Clear, modal_area);
+
+        let chunks = Layout::default()
+            .direction(Direction::Vertical)
+            .constraints([Constraint::Length(3), Constraint::Min(3)])
+            .split(modal_area);
+
+        self.search_state.input.draw(f, chunks[0], theme, true);
+        self.search_state.results.draw(f, chunks[1], theme);
+    }
+
     fn perform_search(&mut self) {
         let query = self.search_state.input.query().to_string(); // Clone to avoid borrow issues
 
@@ -1513,8 +1611,11 @@ impl App {
                 self.search_state.results.clear();
 
                 for result in search_results {
-                    let excerpt = if result.content.len() > 100 {
-                        format!("{}...", &result.content[..100])
+                    let excerpt = if result.content.chars().count() > 100 {
+                        format!(
+                            "{}...",
+                            result.content.chars().take(100).collect::<String>()
+                        )
                     } else {
                         result.content.clone()
                     };

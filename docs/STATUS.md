@@ -1,9 +1,9 @@
 # Status do Projeto ztlgr
 
-**Data Atualização:** 10 de Abril de 2026  
+**Data Atualização:** 20 de Abril de 2026  
 **Versão:** 0.6.0 (LLM Wiki Integration Complete)
 **Status Geral:** 🟢 ACTIVE DEVELOPMENT
-**Testes:** 904 passing (100% success rate)
+**Testes:** 905 passing (100% success rate)
 
 ---
 
@@ -28,6 +28,32 @@
 - ✅ **Progress Indicators**: 100% (multi-stage progress, spinner animations)
 - ✅ **LLM Post-Processor**: 100% (note validation, formatting fixes)
 - ✅ **Extended LLM Providers**: 100% (Gemini, OpenRouter, NVIDIA)
+
+---
+
+## 🔄 RECENT IMPROVEMENTS (April 20, 2026)
+
+### Search Flow Hardening (TUI + FTS)
+
+Correções no fluxo completo de busca dentro da TUI (entrada -> recuperação -> abertura da nota):
+
+**TUI Search UX** (`src/ui/app.rs`, `src/ui/widgets/search.rs`):
+- Busca agora renderiza overlay dedicado com input + lista de resultados em `Mode::Search`
+- `Enter` abre a nota selecionada (antes reexecutava busca e não navegava)
+- Resultado aberto é sincronizado com `self.notes` para evitar inconsistência na navegação
+- Truncamento de excerpt corrigido para UTF-8 (`chars().take(100)`) evitando panic por byte boundary
+- Lista de resultados agora faz windowing por viewport (mantém item selecionado visível)
+
+**Busca no DB / FTS5** (`src/db/schema.rs`):
+- `search_notes()` tenta query FTS raw primeiro (mantém sintaxe avançada)
+- Fallback robusto para prefix query sanitizada (`?mapr` -> `mapr*`) quando a entrada tem caracteres especiais
+- Query vazia retorna vazio imediatamente
+- Novo teste de regressão para `?mapr` + `mapreduce`
+
+**Validação:**
+- ✅ `cargo fmt --all`
+- ✅ `cargo test --lib` (905 passing)
+- ✅ `cargo clippy --all-features -- -D warnings`
 
 ---
 
@@ -534,8 +560,14 @@ Comprehensive help system accessible via `?` or `:help`:
 ### Backlog
 - [ ] Graph filtering by note type, tags, or link depth
 - [ ] Search filters (by type/tags/status/date)
+- [ ] Paginação real da busca (DB: `limit+offset+count`, TUI: page state + keybindings + total)
 - [ ] Note templates
 - [ ] Daily notes auto-creation
+
+### Sprint Foco (Busca TUI)
+- [ ] Implementar paginação incremental na busca (sem quebrar API atual)
+- [ ] Exibir score/snippet real do FTS5 (`snippet()` + `bm25`) na lista de resultados
+- [ ] Adicionar testes de integração do fluxo `/` -> digitar -> selecionar -> abrir nota
 
 ---
 

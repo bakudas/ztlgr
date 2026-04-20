@@ -304,24 +304,63 @@ impl Database {
     }
 
     pub fn search_notes(&self, query: &str, limit: usize) -> ZResult<Vec<Note>> {
+        let query = query.trim();
+        if query.is_empty() {
+            return Ok(Vec::new());
+        }
+
         let conn = self.conn.lock();
 
-        let mut stmt = conn.prepare(
-            "SELECT n.id, n.title, n.content, n.note_type, n.zettel_id, n.parent_id, n.source, n.metadata, n.created_at, n.updated_at, n.deleted_at
-             FROM notes n
-             JOIN notes_fts fts ON n.id = fts.id
-             WHERE notes_fts MATCH ?1 AND n.deleted_at IS NULL
-             ORDER BY bm25(notes_fts)
-             LIMIT ?2"
-        ).map_err(ZtlgrError::Database)?;
+        let run_query = |fts_query: &str| -> ZResult<Vec<Note>> {
+            let mut stmt = conn
+                .prepare(
+                    "SELECT n.id, n.title, n.content, n.note_type, n.zettel_id, n.parent_id, n.source, n.metadata, n.created_at, n.updated_at, n.deleted_at
+                     FROM notes n
+                     JOIN notes_fts fts ON n.id = fts.id
+                     WHERE notes_fts MATCH ?1 AND n.deleted_at IS NULL
+                     ORDER BY bm25(notes_fts)
+                     LIMIT ?2",
+                )
+                .map_err(ZtlgrError::Database)?;
 
-        let notes = stmt
-            .query_map(rusqlite::params![query, limit as i32], note_from_row)
-            .map_err(ZtlgrError::Database)?
-            .collect::<std::result::Result<Vec<_>, _>>()
-            .map_err(ZtlgrError::Database)?;
+            let mapped = stmt
+                .query_map(rusqlite::params![fts_query, limit as i32], note_from_row)
+                .map_err(ZtlgrError::Database)?;
+            mapped
+                .collect::<std::result::Result<Vec<_>, _>>()
+                .map_err(ZtlgrError::Database)
+        };
 
-        Ok(notes)
+        if let Ok(notes) = run_query(query) {
+            if !notes.is_empty() {
+                return Ok(notes);
+            }
+        }
+
+        let Some(fts_query) = Self::build_fts_prefix_query(query) else {
+            return Ok(Vec::new());
+        };
+
+        run_query(&fts_query)
+    }
+
+    fn build_fts_prefix_query(query: &str) -> Option<String> {
+        let mut terms = Vec::new();
+
+        for raw in query.split_whitespace() {
+            for token in raw.split(|c: char| !c.is_alphanumeric()) {
+                if token.is_empty() {
+                    continue;
+                }
+                terms.push(format!("{}*", token));
+            }
+        }
+
+        if terms.is_empty() {
+            None
+        } else {
+            Some(terms.join(" "))
+        }
     }
 
     pub fn rebuild_fts(&self) -> ZResult<()> {
@@ -1043,6 +1082,23 @@ mod tests {
         let results = db.search_notes("searchable", 10).expect("Failed to search");
         assert_eq!(results.len(), 1, "Should find only the active note");
         assert_eq!(results[0].id.as_str(), id1.as_str());
+    }
+
+    #[test]
+    fn test_search_handles_prefixed_and_special_char_queries() {
+        let (db, _temp) = create_test_db();
+
+        let mut note = create_test_note("MapReduce Deep Dive");
+        note.content = "MapReduce pipelines and map-side joins".to_string();
+
+        db.create_note(&note).expect("Failed to create note");
+
+        let results = db
+            .search_notes("?mapr", 10)
+            .expect("Search should not fail for special chars");
+
+        assert_eq!(results.len(), 1, "Prefix query should match mapreduce");
+        assert_eq!(results[0].title, "MapReduce Deep Dive");
     }
 
     #[test]

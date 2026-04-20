@@ -259,9 +259,27 @@ impl SearchResults {
             f.render_widget(block, area);
             f.render_widget(message, inner);
         } else {
+            // Render only visible rows and keep selection in view
+            let visible_rows = inner.height as usize;
+            let total = self.results.len();
+            let start = if total > visible_rows {
+                self.selected_index
+                    .saturating_sub(visible_rows / 2)
+                    .min(total - visible_rows)
+            } else {
+                0
+            };
+            let end = (start + visible_rows).min(total);
+
             // Render results list
             let mut lines = Vec::new();
-            for (idx, result) in self.results.iter().enumerate() {
+            for (idx, result) in self
+                .results
+                .iter()
+                .enumerate()
+                .skip(start)
+                .take(end - start)
+            {
                 let is_selected = idx == self.selected_index;
                 let style = if is_selected {
                     ratatui::style::Style::default()
