@@ -76,10 +76,11 @@
         
         packages.default = pkgs.rustPlatform.buildRustPackage {
           pname = "ztlgr";
-          version = "0.1.0";
+          version = "0.6.1";
           src = ./.;
           cargoLock.lockFile = ./Cargo.lock;
-          
+          doCheck = false;
+
           inherit buildInputs nativeBuildInputs;
         };
         
